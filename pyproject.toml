@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "portfolio-digest-linebot"
+version = "0.1.0"
+description = "Daily LINE Portfolio Ops Digest bot"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "feedparser>=6.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "python-dateutil>=2.9",
+    "rapidfuzz>=3.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "requests-mock>=1.12",
+]
+
+[project.scripts]
+portfolio-digest = "src.main:main"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

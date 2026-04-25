@@ -1,0 +1,6 @@
+date,amount,currency,category,description
+2026-04-01,10000.00,USD,deposit,Initial funding
+2026-04-15,55.00,USD,coupon,ACME 5.5% semiannual coupon
+2026-04-18,-12.50,CHF,fee,Quarterly custody fee
+2026-04-22,210.00,CHF,coupon,BETA FRN coupon
+2026-04-24,-3.20,USD,fee,Wire fee

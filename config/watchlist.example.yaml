@@ -1,0 +1,33 @@
+# Sample watchlist. Copy to private/watchlist.yaml and edit with real issuers.
+# All values here are fake.
+
+issuers:
+  - id: ACME
+    name: ACME Holdings AG
+    aliases:
+      - ACME Holdings
+      - ACME Group
+    rss:
+      - https://example.com/acme/press.rss
+    google_news_query: "ACME Holdings AG"
+    enabled: true
+
+  - id: BETA
+    name: Beta Capital SA
+    aliases:
+      - Beta Capital
+    rss: []
+    google_news_query: "Beta Capital SA"
+    enabled: true
+
+settings:
+  lookback_hours: 24
+  max_items_per_issuer: 1
+  dedup_lookback_days: 3
+  similarity_threshold: 0.85
+  alert_keywords:
+    - default
+    - downgrade
+    - restructur
+    - bankrupt
+    - missed payment
