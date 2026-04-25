@@ -1,0 +1,19 @@
+【Daily Investment Digest】2026-04-25 (Asia/Taipei)
+
+✅ Status: All clear
+
+📰 News (last 24h, 0–1 per issuer)
+- (unavailable)
+
+💱 FX
+- (unavailable)
+
+📌 Portfolio Snapshot (Cost-based)
+- (unavailable)
+
+💰 Cashflow (Ledger)
+- (unavailable)
+
+🧾 Notes
+- Data gaps: News, FX, Ledger, Positions unavailable
+- Exceptions: ledger_csv_parse_error: 2 rows skipped
