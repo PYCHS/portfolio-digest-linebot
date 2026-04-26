@@ -1,0 +1,148 @@
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import requests
+
+from src.dedup import SeenEntry, save_seen
+from src.sources.news import fetch_news
+
+UTC = timezone.utc
+NOW = datetime(2026, 4, 25, 12, 0, 0, tzinfo=UTC)
+FIXTURES = Path(__file__).parent / "fixtures"
+WATCHLIST = FIXTURES / "watchlist_test.yaml"
+ACME_RSS_URL = "https://example.com/acme/press.rss"
+GN_URL = "https://news.google.com/rss/search"
+
+
+def _read(name: str) -> str:
+    return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def test_happy_path_returns_one_item_per_enabled_issuer(requests_mock, tmp_path):
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    items, exc = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    assert exc == []
+    assert items is not None
+    assert [i.issuer_id for i in items] == ["ACME", "BETA"]
+    assert items[0].summary == "ACME Q1 results in line with guidance"
+    assert items[0].is_alert is False
+    assert items[1].summary == "Beta Capital appoints new CFO"
+    assert items[1].source == "Reuters"
+
+
+def test_disabled_issuer_skipped(requests_mock, tmp_path):
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    items, _ = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    # Watchlist has 3 issuers (ACME, BETA, GAMMA-disabled). Only 2 returned.
+    assert len(items) == 2
+    assert "GAMMA" not in {i.issuer_id for i in items}
+
+
+def test_lookback_filter_excludes_old_items(requests_mock, tmp_path):
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    items, _ = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    # rss_acme.xml has an item 28h old that must NOT appear
+    assert all("minor product update" not in i.summary for i in items)
+
+
+def test_dedup_across_runs_returns_no_acme_item_on_second_run(requests_mock, tmp_path):
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+    seen = tmp_path / "seen.json"
+
+    first, _ = fetch_news(WATCHLIST, seen, now=NOW)
+    assert any(i.issuer_id == "ACME" for i in first)
+
+    # Second run, same feeds — ACME's title is already in seen.json
+    second, _ = fetch_news(WATCHLIST, seen, now=NOW + timedelta(hours=1))
+    assert all(i.issuer_id != "ACME" for i in second)
+
+
+def test_alert_keyword_sets_is_alert(requests_mock, tmp_path):
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_alert.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    items, _ = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    acme = next(i for i in items if i.issuer_id == "ACME")
+    assert acme.is_alert is True
+    assert "downgrade" in acme.summary.lower()
+
+
+def test_max_items_per_issuer_limit(tmp_path, requests_mock):
+    # Build a watchlist with max_items=1 and an RSS with 3 fresh items
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: ACME\n"
+        "    name: ACME\n"
+        "    rss:\n"
+        "      - https://example.com/acme/press.rss\n"
+        "    enabled: true\n"
+        "settings:\n"
+        "  lookback_hours: 24\n"
+        "  max_items_per_issuer: 1\n"
+        "  dedup_lookback_days: 3\n"
+        "  similarity_threshold: 0.85\n"
+        "  alert_keywords: []\n",
+        encoding="utf-8",
+    )
+    rss = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <item><title>ACME headline one</title><link>https://acme.com/1</link><pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>
+  <item><title>ACME headline two</title><link>https://acme.com/2</link><pubDate>Sat, 25 Apr 2026 09:30:00 +0000</pubDate></item>
+  <item><title>ACME headline three</title><link>https://acme.com/3</link><pubDate>Sat, 25 Apr 2026 09:00:00 +0000</pubDate></item>
+</channel></rss>"""
+    requests_mock.get(ACME_RSS_URL, text=rss)
+
+    items, _ = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    assert len(items) == 1
+
+
+def test_watchlist_missing_returns_full_gap(tmp_path):
+    items, exc = fetch_news(tmp_path / "no_such_file.yaml", tmp_path / "seen.json", now=NOW)
+    assert items is None
+    assert exc == ["news: watchlist file not found"]
+
+
+def test_watchlist_malformed_returns_full_gap(tmp_path):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("settings: {}\n", encoding="utf-8")  # no 'issuers' key
+    items, exc = fetch_news(bad, tmp_path / "seen.json", now=NOW)
+    assert items is None
+    assert exc and "malformed" in exc[0]
+
+
+def test_direct_feed_network_error_logged_and_run_does_not_crash(requests_mock, tmp_path):
+    # Direct ACME feed times out; a separately-empty Google News mock catches
+    # both ACME's fallback and BETA's primary call. The point is that the run
+    # returns a list (not None — None means watchlist-level failure) and
+    # ACME's network error is preserved in the exceptions list.
+    requests_mock.get(ACME_RSS_URL, exc=requests.exceptions.ConnectTimeout)
+    requests_mock.get(GN_URL, text='<?xml version="1.0"?><rss><channel></channel></rss>')
+
+    items, exc = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    assert items is not None
+    assert any("ACME" in e and "ConnectTimeout" in e for e in exc)
+
+
+def test_3day_rolloff_lets_old_dedup_entry_expire_so_item_re_emerges(tmp_path, requests_mock):
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+    seen_path = tmp_path / "seen.json"
+    # Pre-seed with an entry from 4 days ago that matches ACME's headline
+    save_seen(
+        seen_path,
+        [SeenEntry(
+            title_norm="acme q1 results in line with guidance",
+            first_seen=(NOW - timedelta(days=4)).isoformat(),
+        )],
+    )
+    items, _ = fetch_news(WATCHLIST, seen_path, now=NOW)
+    # The stale dedup entry should have been pruned, so ACME's item re-emerges
+    assert any(i.issuer_id == "ACME" for i in items)

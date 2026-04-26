@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>ACME Press</title>
+  <item>
+    <title>ACME issuer downgrade flagged by S&amp;P</title>
+    <link>https://acme.com/press/downgrade</link>
+    <pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate>
+  </item>
+</channel>
+</rss>

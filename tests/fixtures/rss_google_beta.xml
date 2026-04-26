@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Beta Capital - Google News</title>
+  <link>https://news.google.com/rss/search</link>
+  <description>Aggregated news for Beta Capital.</description>
+  <item>
+    <title>Beta Capital appoints new CFO</title>
+    <link>https://news.google.com/articles/redirect</link>
+    <pubDate>Sat, 25 Apr 2026 11:00:00 +0000</pubDate>
+    <source url="https://reuters.com">Reuters</source>
+  </item>
+</channel>
+</rss>

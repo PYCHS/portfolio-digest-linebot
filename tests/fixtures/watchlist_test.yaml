@@ -1,0 +1,21 @@
+issuers:
+  - id: ACME
+    name: ACME Holdings AG
+    rss:
+      - https://example.com/acme/press.rss
+    enabled: true
+  - id: BETA
+    name: Beta Capital SA
+    google_news_query: "Beta Capital"
+    enabled: true
+  - id: GAMMA
+    name: Gamma Co
+    enabled: false
+settings:
+  lookback_hours: 24
+  max_items_per_issuer: 1
+  dedup_lookback_days: 3
+  similarity_threshold: 0.85
+  alert_keywords:
+    - downgrade
+    - default
