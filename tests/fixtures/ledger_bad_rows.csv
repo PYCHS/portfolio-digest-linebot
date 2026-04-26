@@ -1,0 +1,6 @@
+date,amount,currency,category,description
+2026-04-25,55.00,USD,coupon,Good row
+NOT-A-DATE,10.00,USD,deposit,Bad date
+2026-04-25,not-a-number,USD,fee,Bad amount
+2026-04-25,30.00,JPY,deposit,Unsupported currency
+2026-04-25,20.00,USD,deposit,Another good row

@@ -1,0 +1,8 @@
+date,amount,currency,category,description
+2026-03-15,1000.00,USD,deposit,Prior month deposit
+2026-04-01,500.00,USD,deposit,April funding
+2026-04-15,55.00,USD,coupon,Mid-month coupon
+2026-04-22,210.00,CHF,coupon,CHF coupon
+2026-04-25,-12.50,CHF,fee,Custody fee today
+2026-04-25,55.00,USD,coupon,Coupon today
+2026-04-26,-3.00,USD,fee,Future row excluded
