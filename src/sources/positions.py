@@ -116,6 +116,7 @@ def load_positions(
             total_cost[ccy] = total_cost.get(ccy, Decimal("0.00")) + cost
 
         annual = _parse_decimal_field(row, "annual_interest", n, exceptions)
+        semi = _parse_decimal_field(row, "semiannual_interest", n, exceptions)
         if annual is not None:
             annual_coupon[ccy] = annual_coupon.get(ccy, Decimal("0.00")) + annual
 
@@ -124,11 +125,11 @@ def load_positions(
             occurrences = _next_occurrences(coupon_dates_raw, today)
             in_window = [d for d in occurrences if today <= d <= window_end]
             if in_window:
-                semi = _parse_decimal_field(row, "semiannual_interest", n, exceptions)
                 amt = _per_coupon_amount(annual, semi, len(occurrences))
                 if amt is not None:
+                    next_date = min(in_window)
                     candidates.append(
-                        (min(in_window), n, Coupon(issuer=issuer, date=min(in_window), amount=amt, currency=ccy))
+                        (next_date, n, Coupon(issuer=issuer, date=next_date, amount=amt, currency=ccy))
                     )
 
     candidates.sort(key=lambda x: (x[0], x[1]))

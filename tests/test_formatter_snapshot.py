@@ -85,3 +85,29 @@ def test_status_flips_to_alert_when_news_item_is_alert():
     out = render(d_alert)
     assert "⚠️ Status: Alert" in out
     assert "✅ Status: All clear" not in out
+
+
+def test_next_coupon_renders_non_usd_currency():
+    base = _all_populated()
+    chf_coupon = Coupon(
+        issuer="Issuer X",
+        date=date(2026, 5, 1),
+        amount=Decimal("100.00"),
+        currency="CHF",
+    )
+    snap = Snapshot(
+        total_cost=base.snapshot.total_cost,
+        annual_coupon=base.snapshot.annual_coupon,
+        next_coupon=chf_coupon,
+        uncosted_issuers=[],
+    )
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=snap,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+    )
+    out = render(d)
+    assert "- Next Coupon (7d): Issuer X 2026-05-01 100.00 CHF" in out

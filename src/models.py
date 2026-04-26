@@ -47,12 +47,6 @@ class Snapshot:
 
 
 @dataclass(frozen=True)
-class DataGap:
-    source: str
-    reason: str
-
-
-@dataclass(frozen=True)
 class DigestInput:
     date_str: str
     news: list[NewsItem] | None

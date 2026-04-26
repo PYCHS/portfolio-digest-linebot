@@ -77,3 +77,17 @@ def test_row_on_first_of_month_counts_in_mtd_not_today():
     # 2026-04-01 USD 500.00 is in MTD but not today
     assert Decimal("500.00") <= cf.mtd_usd
     assert cf.today_usd == Decimal("55.00")
+
+
+def test_too_few_columns_logs_exception_and_keeps_valid_rows(tmp_path):
+    p = tmp_path / "short_row.csv"
+    p.write_text(
+        "date,amount,currency,category,description\n"
+        "2026-04-25,55.00\n"
+        "2026-04-25,20.00,USD,coupon,ok\n",
+        encoding="utf-8",
+    )
+    cf, exc = load_ledger(p, today=TODAY)
+    assert cf is not None
+    assert cf.today_usd == Decimal("20.00")
+    assert exc == ["ledger row 2: too few columns"]

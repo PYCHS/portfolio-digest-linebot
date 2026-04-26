@@ -133,3 +133,24 @@ def test_per_coupon_amount_divides_when_more_than_two_dates(tmp_path):
     assert snap.next_coupon is not None
     assert snap.next_coupon.date == date(2026, 4, 30)
     assert snap.next_coupon.amount == Decimal("1000.00")
+
+
+def test_malformed_semiannual_interest_logged_even_when_coupon_out_of_window(tmp_path):
+    # Regression for B1: semiannual_interest parsing previously only happened
+    # inside the in-window branch, so a row with a malformed semi field plus a
+    # far-future coupon date silently swallowed the error.
+    csv_path = tmp_path / "bad_semi_far_coupon.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Far Issuer,XS0,20250101,100,5.00,2030,"
+        "100.00,10000.00,500.00,not-a-num,5,5,12/01\n",
+        encoding="utf-8",
+    )
+    snap, exc = load_positions(csv_path, today=TODAY)
+    assert snap is not None
+    # Coupon is in December — out of 7d window — so next_coupon is None.
+    assert snap.next_coupon is None
+    # But the malformed semiannual_interest must still be flagged.
+    assert any("bad semiannual_interest" in e for e in exc), exc
