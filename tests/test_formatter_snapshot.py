@@ -28,14 +28,15 @@ def _all_populated() -> DigestInput:
             usd_chf_dod_pct=Decimal("-0.12"),
         ),
         snapshot=Snapshot(
-            total_cost_usd=Decimal("14750.00"),
-            annual_coupon_usd=Decimal("760.00"),
+            total_cost={"USD": Decimal("14750.00")},
+            annual_coupon={"USD": Decimal("760.00")},
             next_coupon=Coupon(
-                issuer_id="ACME",
+                issuer="ACME",
                 date=date(2026, 5, 1),
                 amount=Decimal("27.50"),
                 currency="USD",
             ),
+            uncosted_issuers=[],
         ),
         cashflow=Cashflow(
             today_usd=Decimal("55.00"),

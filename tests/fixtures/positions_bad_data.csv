@@ -1,0 +1,4 @@
+instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,coupon_rate_pct,maturity,buy_price,cost,annual_interest,semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates
+bond,,XS0000000001,20250101,10000,5.00,2030,98.50,985000.00,50000.00,25000.00,5.20,5.0761,5/01;11/01
+bond,Issuer Beta,US0000000002,20250601,5000,4.50,2028,not-a-number,495000.00,22500.00,11250.00,4.65,4.5454,5/15
+bond,Issuer Gamma,XS0000000003,20251101,2000,6.00,2032,100.00,200000.00,12000.00,6000.00,6.00,6.0000,7/15;1/15

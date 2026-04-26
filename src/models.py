@@ -32,7 +32,7 @@ class Cashflow:
 
 @dataclass(frozen=True)
 class Coupon:
-    issuer_id: str
+    issuer: str
     date: date
     amount: Decimal
     currency: str
@@ -40,9 +40,10 @@ class Coupon:
 
 @dataclass(frozen=True)
 class Snapshot:
-    total_cost_usd: Decimal
-    annual_coupon_usd: Decimal
+    total_cost: dict[str, Decimal]
+    annual_coupon: dict[str, Decimal]
     next_coupon: Coupon | None
+    uncosted_issuers: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -1,3 +1,4 @@
-issuer_id,instrument,isin,face_value,currency,coupon_rate,coupon_freq,next_coupon_date,maturity,cost,quantity
-ACME,ACME 5.5% 2028,XS0000000001,1000,USD,0.055,semiannual,2026-05-01,2028-05-01,9850.00,10
-BETA,BETA FRN 2027,CH0000000002,1000,CHF,0.042,semiannual,2026-07-15,2027-12-31,4900.00,5
+instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,coupon_rate_pct,maturity,buy_price,cost,annual_interest,semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates
+bond,Sample Issuer A,XS0000000001,20250101,10000,5.00,2030,98.50,985000.00,50000.00,25000.00,5.20,5.0761,3/15;9/15
+bond,Sample Issuer B,US0000000002,20250601,5000,4.50,2028,99.00,495000.00,22500.00,11250.00,4.65,4.5454,6/01;12/01
+note,"Sample FCN",,20260101,100000,10.00,2026-12-31,,,1200.00,,,,1/05;2/05;3/05;4/05

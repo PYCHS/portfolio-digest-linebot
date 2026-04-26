@@ -39,16 +39,20 @@ def render(d: DigestInput) -> str:
         lines.append("- (unavailable)")
     else:
         s = d.snapshot
-        lines.append(f"- Total Cost: {s.total_cost_usd:,.2f} USD")
-        lines.append(f"- Est. Annual Coupon: {s.annual_coupon_usd:,.2f} USD")
+        for ccy in sorted(s.total_cost):
+            lines.append(f"- Total Cost: {s.total_cost[ccy]:,.2f} {ccy}")
+        for ccy in sorted(s.annual_coupon):
+            lines.append(f"- Est. Annual Coupon: {s.annual_coupon[ccy]:,.2f} {ccy}")
         if s.next_coupon is None:
             lines.append("- Next Coupon (7d): none")
         else:
             c = s.next_coupon
             lines.append(
-                f"- Next Coupon (7d): {c.issuer_id} {c.date.isoformat()} "
+                f"- Next Coupon (7d): {c.issuer} {c.date.isoformat()} "
                 f"{c.amount:,.2f} {c.currency}"
             )
+        for issuer in s.uncosted_issuers:
+            lines.append(f"- {issuer}: Cost unavailable")
     lines.append("")
 
     lines.append("\U0001f4b0 Cashflow (Ledger)")
