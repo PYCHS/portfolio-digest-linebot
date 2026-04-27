@@ -98,18 +98,18 @@ def fetch_news(
         for url in configured_urls:
             try:
                 entries = _fetch_entries(url, timeout)
-            except (requests.RequestException, ValueError) as e:
-                exceptions.append(f"news: {iid}: {type(e).__name__} on {url}")
+            except (requests.RequestException, ValueError) as exc:
+                exceptions.append(f"news: {iid}: {type(exc).__name__} on {url}")
                 continue
-            for e in entries:
-                candidate_entries.append((e, url))
+            for entry in entries:
+                candidate_entries.append((entry, url))
         if not candidate_entries:
             try:
                 entries = _fetch_entries(gn_url, timeout)
-                for e in entries:
-                    candidate_entries.append((e, gn_url))
-            except (requests.RequestException, ValueError) as e:
-                exceptions.append(f"news: {iid}: {type(e).__name__} on Google News fallback")
+                for entry in entries:
+                    candidate_entries.append((entry, gn_url))
+            except (requests.RequestException, ValueError) as exc:
+                exceptions.append(f"news: {iid}: {type(exc).__name__} on Google News fallback")
 
         chosen = 0
         for entry, src_url in candidate_entries:

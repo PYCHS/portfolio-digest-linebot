@@ -96,7 +96,7 @@ def load_positions(
     total_cost: dict[str, Decimal] = {}
     annual_coupon: dict[str, Decimal] = {}
     uncosted_issuers: list[str] = []
-    candidates: list[tuple[Date, int, Coupon]] = []
+    candidates: list[tuple[int, Coupon]] = []
     exceptions: list[str] = []
 
     for n, row in enumerate(rows, start=2):
@@ -105,8 +105,8 @@ def load_positions(
             exceptions.append(f"positions row {n}: missing issuer_or_name")
             continue
 
-        ccy_raw = (row.get("currency") if has_currency_col else "") or ""
-        ccy = ccy_raw.strip().upper() or default_ccy
+        ccy_raw = row.get("currency", "") if has_currency_col else ""
+        ccy = (ccy_raw or "").strip().upper() or default_ccy
 
         cost = _parse_decimal_field(row, "cost", n, exceptions)
         buy_price = _parse_decimal_field(row, "buy_price", n, exceptions)
@@ -129,11 +129,11 @@ def load_positions(
                 if amt is not None:
                     next_date = min(in_window)
                     candidates.append(
-                        (next_date, n, Coupon(issuer=issuer, date=next_date, amount=amt, currency=ccy))
+                        (n, Coupon(issuer=issuer, date=next_date, amount=amt, currency=ccy))
                     )
 
-    candidates.sort(key=lambda x: (x[0], x[1]))
-    next_coupon = candidates[0][2] if candidates else None
+    candidates.sort(key=lambda c: (c[1].date, c[0]))
+    next_coupon = candidates[0][1] if candidates else None
 
     snapshot = Snapshot(
         total_cost=total_cost,
