@@ -153,6 +153,7 @@ def fetch_news(
                     summary=title,
                     source=_entry_source(entry, src_url),
                     is_alert=is_alert,
+                    link=(entry.get("link") or None),
                 )
             )
             chosen += 1

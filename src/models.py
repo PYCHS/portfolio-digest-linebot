@@ -11,6 +11,7 @@ class NewsItem:
     summary: str
     source: str
     is_alert: bool = False
+    link: str | None = None
 
 
 @dataclass(frozen=True)

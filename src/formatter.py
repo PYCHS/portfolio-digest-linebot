@@ -22,6 +22,8 @@ def render(d: DigestInput) -> str:
     else:
         for n in d.news:
             lines.append(f"- {n.issuer_id}: {n.summary} ({n.source})")
+            if n.link:
+                lines.append(f"  {n.link}")
     lines.append("")
 
     lines.append("\U0001f4b1 FX")

@@ -306,6 +306,17 @@ def test_user_schema_does_not_silently_skip_any_issuer(tmp_path, requests_mock):
     assert len(gn_calls) == 3  # one per issuer
 
 
+def test_news_item_captures_link_from_rss_entry(requests_mock, tmp_path):
+    """RSS `<link>` round-trips into NewsItem.link so the formatter can render
+    a tappable URL alongside the headline in LINE messages."""
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    items, _ = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    acme = next(i for i in items if i.issuer_id == "ACME")
+    assert acme.link and acme.link.startswith("http")
+
+
 def test_3day_rolloff_lets_old_dedup_entry_expire_so_item_re_emerges(tmp_path, requests_mock):
     requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
     requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))

@@ -4,7 +4,9 @@
 
 📰 News (last 24h, 0–1 per issuer)
 - ACME: Q1 results in line with guidance (acme.com)
+  https://acme.com/q1
 - BETA: New CFO appointed (reuters.com)
+  https://reuters.com/beta-cfo
 
 💱 FX
 - USD/CHF: 0.9123 (Δ -0.12% DoD)

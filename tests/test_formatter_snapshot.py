@@ -19,8 +19,18 @@ def _all_populated() -> DigestInput:
     return DigestInput(
         date_str="2026-04-25",
         news=[
-            NewsItem("ACME", "Q1 results in line with guidance", "acme.com"),
-            NewsItem("BETA", "New CFO appointed", "reuters.com"),
+            NewsItem(
+                "ACME",
+                "Q1 results in line with guidance",
+                "acme.com",
+                link="https://acme.com/q1",
+            ),
+            NewsItem(
+                "BETA",
+                "New CFO appointed",
+                "reuters.com",
+                link="https://reuters.com/beta-cfo",
+            ),
         ],
         fx=FxResult(
             usd_chf=Decimal("0.9123"),
@@ -82,6 +92,27 @@ def test_status_flips_to_alert_when_news_item_is_alert():
     out = render(d_alert)
     assert "⚠️ Status: Alert" in out
     assert "✅ Status: All clear" not in out
+
+
+def test_news_item_without_link_renders_without_continuation_line():
+    """When link is None/empty, the formatter must not emit an empty
+    `  ` continuation line — older fixtures and any source that doesn't
+    surface a link should still render cleanly."""
+    base = _all_populated()
+    no_link = NewsItem("ACME", "Q1 results in line with guidance", "acme.com")
+    d = DigestInput(
+        date_str=base.date_str,
+        news=[no_link],
+        fx=base.fx,
+        snapshot=base.snapshot,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+    )
+    out = render(d)
+    assert "- ACME: Q1 results in line with guidance (acme.com)" in out
+    # No bare-indent continuation line (`  ` followed by nothing meaningful).
+    for line in out.splitlines():
+        assert not (line.startswith("  ") and line.strip() == "")
 
 
 def test_next_coupon_renders_non_usd_currency():
