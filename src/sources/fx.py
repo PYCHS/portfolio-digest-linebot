@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date as Date, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 import requests
 
@@ -13,6 +13,9 @@ RATE_QUANTUM = Decimal("0.0001")
 PCT_QUANTUM = Decimal("0.01")
 
 
+_FETCH_ERRORS = (requests.RequestException, KeyError, ValueError, InvalidOperation)
+
+
 def _fetch(base_url: str, segment: str, timeout: float) -> tuple[Date, Decimal]:
     resp = requests.get(
         f"{base_url}/{segment}",
@@ -22,6 +25,8 @@ def _fetch(base_url: str, segment: str, timeout: float) -> tuple[Date, Decimal]:
     resp.raise_for_status()
     data = resp.json()
     rate = Decimal(str(data["rates"]["CHF"]))
+    if not rate.is_finite():
+        raise ValueError(f"non-finite rate: {data['rates']['CHF']!r}")
     return Date.fromisoformat(data["date"]), rate
 
 
@@ -39,7 +44,7 @@ def fetch_fx(
     """
     try:
         date_t, usd_chf = _fetch(base_url, "latest", timeout)
-    except (requests.RequestException, KeyError, ValueError) as e:
+    except _FETCH_ERRORS as e:
         return None, [f"fx: latest fetch failed: {type(e).__name__}"]
 
     target = (date_t - timedelta(days=1)).isoformat()
@@ -50,7 +55,7 @@ def fetch_fx(
             dod_pct = (
                 (usd_chf - prior_rate) / prior_rate * Decimal(100)
             ).quantize(PCT_QUANTUM, rounding=ROUND_HALF_UP)
-    except (requests.RequestException, KeyError, ValueError):
+    except _FETCH_ERRORS:
         pass
 
     usd_chf_q = usd_chf.quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)

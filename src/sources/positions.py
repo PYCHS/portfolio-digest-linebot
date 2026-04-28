@@ -27,10 +27,14 @@ def _parse_decimal_field(
     if raw is None or raw.strip() == "":
         return None
     try:
-        return Decimal(raw.strip())
+        val = Decimal(raw.strip())
     except (InvalidOperation, ValueError):
         exceptions.append(f"positions row {row_n}: bad {key} '{raw}'")
         return None
+    if not val.is_finite():
+        exceptions.append(f"positions row {row_n}: non-finite {key} '{raw}'")
+        return None
+    return val
 
 
 def _next_occurrences(coupon_dates: str, today: Date) -> list[Date]:

@@ -22,12 +22,9 @@ class FxResult:
 
 @dataclass(frozen=True)
 class Cashflow:
-    today_usd: Decimal
-    today_chf: Decimal
-    mtd_usd: Decimal
-    mtd_chf: Decimal
-    bal_usd: Decimal
-    bal_chf: Decimal
+    today: dict[str, Decimal]
+    mtd: dict[str, Decimal]
+    bal: dict[str, Decimal]
 
 
 @dataclass(frozen=True)

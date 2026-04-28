@@ -39,12 +39,9 @@ def _all_populated() -> DigestInput:
             uncosted_issuers=[],
         ),
         cashflow=Cashflow(
-            today_usd=Decimal("55.00"),
-            today_chf=Decimal("-12.50"),
-            mtd_usd=Decimal("1065.00"),
-            mtd_chf=Decimal("197.50"),
-            bal_usd=Decimal("1065.00"),
-            bal_chf=Decimal("197.50"),
+            today={"USD": Decimal("55.00"), "CHF": Decimal("-12.50")},
+            mtd={"USD": Decimal("1065.00"), "CHF": Decimal("197.50")},
+            bal={"USD": Decimal("1065.00"), "CHF": Decimal("197.50")},
         ),
         exceptions=[],
     )

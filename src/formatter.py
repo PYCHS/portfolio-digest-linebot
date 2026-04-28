@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from .models import DigestInput
 
 
@@ -60,9 +62,16 @@ def render(d: DigestInput) -> str:
         lines.append("- (unavailable)")
     else:
         cf = d.cashflow
-        lines.append(f"- Today: {cf.today_usd:+,.2f} USD | {cf.today_chf:+,.2f} CHF")
-        lines.append(f"- MTD:   {cf.mtd_usd:+,.2f} USD | {cf.mtd_chf:+,.2f} CHF")
-        lines.append(f"- Bal:   USD {cf.bal_usd:,.2f} | CHF {cf.bal_chf:,.2f}")
+        zero = Decimal("0.00")
+        today_usd = cf.today.get("USD", zero)
+        today_chf = cf.today.get("CHF", zero)
+        mtd_usd = cf.mtd.get("USD", zero)
+        mtd_chf = cf.mtd.get("CHF", zero)
+        bal_usd = cf.bal.get("USD", zero)
+        bal_chf = cf.bal.get("CHF", zero)
+        lines.append(f"- Today: {today_usd:+,.2f} USD | {today_chf:+,.2f} CHF")
+        lines.append(f"- MTD:   {mtd_usd:+,.2f} USD | {mtd_chf:+,.2f} CHF")
+        lines.append(f"- Bal:   USD {bal_usd:,.2f} | CHF {bal_chf:,.2f}")
     lines.append("")
 
     gaps: list[str] = []

@@ -83,3 +83,20 @@ def test_connection_error_on_today_returns_full_gap(requests_mock):
     fx, exc = fetch_fx()
     assert fx is None
     assert exc and exc[0].startswith("fx: latest fetch failed")
+
+
+def test_non_numeric_rate_returns_full_gap(requests_mock):
+    # A non-numeric rate would raise InvalidOperation (not ValueError) from
+    # Decimal — make sure we treat it as a clean gap rather than crashing.
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": "N/A"}})
+    fx, exc = fetch_fx()
+    assert fx is None
+    assert exc and "InvalidOperation" in exc[0]
+
+
+def test_non_finite_rate_returns_full_gap(requests_mock):
+    # Decimal accepts "Infinity" — we must reject it before it pollutes math.
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": "Infinity"}})
+    fx, exc = fetch_fx()
+    assert fx is None
+    assert exc and "ValueError" in exc[0]

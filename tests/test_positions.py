@@ -135,6 +135,22 @@ def test_per_coupon_amount_divides_when_more_than_two_dates(tmp_path):
     assert snap.next_coupon.amount == Decimal("1000.00")
 
 
+def test_non_finite_buy_price_rejected_and_row_treated_as_uncosted(tmp_path):
+    csv_path = tmp_path / "nonfinite.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        # Infinity in buy_price → the row is "uncosted" because parse rejects it
+        "bond,Bad Issuer,XS0,20250101,100,5.00,2030,Infinity,10000.00,500.00,250.00,5,5,5/01\n",
+        encoding="utf-8",
+    )
+    snap, exc = load_positions(csv_path, today=TODAY)
+    assert snap is not None
+    assert snap.uncosted_issuers == ["Bad Issuer"]
+    assert any("non-finite buy_price" in e for e in exc)
+
+
 def test_malformed_semiannual_interest_logged_even_when_coupon_out_of_window(tmp_path):
     # Regression for B1: semiannual_interest parsing previously only happened
     # inside the in-window branch, so a row with a malformed semi field plus a

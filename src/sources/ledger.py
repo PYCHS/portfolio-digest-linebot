@@ -36,9 +36,9 @@ def load_ledger(
     except OSError as e:
         return None, [f"ledger: read error: {e}"]
 
-    today_usd = today_chf = ZERO
-    mtd_usd = mtd_chf = ZERO
-    bal_usd = bal_chf = ZERO
+    today_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
+    mtd_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
+    bal_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
     exceptions: list[str] = []
     unsupported: list[str] = []
 
@@ -63,6 +63,9 @@ def load_ledger(
         except (InvalidOperation, ValueError):
             exceptions.append(f"ledger row {n}: bad amount '{amount_s}'")
             continue
+        if not amt.is_finite():
+            exceptions.append(f"ledger row {n}: non-finite amount '{amount_s}'")
+            continue
 
         ccy = currency_s.upper()
         if ccy not in SUPPORTED_CURRENCIES:
@@ -72,18 +75,11 @@ def load_ledger(
         if d > today:
             continue
 
-        if ccy == "USD":
-            bal_usd += amt
-            if d.year == today.year and d.month == today.month:
-                mtd_usd += amt
-            if d == today:
-                today_usd += amt
-        else:  # CHF
-            bal_chf += amt
-            if d.year == today.year and d.month == today.month:
-                mtd_chf += amt
-            if d == today:
-                today_chf += amt
+        bal_flow[ccy] += amt
+        if d.year == today.year and d.month == today.month:
+            mtd_flow[ccy] += amt
+        if d == today:
+            today_flow[ccy] += amt
 
     if unsupported:
         codes = sorted(set(unsupported))
@@ -91,12 +87,4 @@ def load_ledger(
             f"ledger: skipped {len(unsupported)} row(s) with unsupported currency: {','.join(codes)}"
         )
 
-    cf = Cashflow(
-        today_usd=today_usd,
-        today_chf=today_chf,
-        mtd_usd=mtd_usd,
-        mtd_chf=mtd_chf,
-        bal_usd=bal_usd,
-        bal_chf=bal_chf,
-    )
-    return cf, exceptions
+    return Cashflow(today=today_flow, mtd=mtd_flow, bal=bal_flow), exceptions

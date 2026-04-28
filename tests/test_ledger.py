@@ -13,29 +13,29 @@ def test_basic_today_mtd_bal():
     assert exc == []
     assert cf is not None
     # Today: USD coupon today; CHF custody fee today
-    assert cf.today_usd == Decimal("55.00")
-    assert cf.today_chf == Decimal("-12.50")
+    assert cf.today["USD"] == Decimal("55.00")
+    assert cf.today["CHF"] == Decimal("-12.50")
     # MTD: April 1 + April 15 + April 25 in USD; April 22 + April 25 in CHF
-    assert cf.mtd_usd == Decimal("610.00")
-    assert cf.mtd_chf == Decimal("197.50")
+    assert cf.mtd["USD"] == Decimal("610.00")
+    assert cf.mtd["CHF"] == Decimal("197.50")
     # Bal: includes March 15 USD prior-month row
-    assert cf.bal_usd == Decimal("1610.00")
-    assert cf.bal_chf == Decimal("197.50")
+    assert cf.bal["USD"] == Decimal("1610.00")
+    assert cf.bal["CHF"] == Decimal("197.50")
 
 
 def test_future_dated_row_excluded_from_all_buckets():
     cf, _ = load_ledger(FIXTURES / "ledger_basic.csv", today=TODAY)
     # The 2026-04-26 row in the fixture is -3.00 USD — must not appear anywhere.
-    assert cf.bal_usd == Decimal("1610.00")
-    assert cf.today_usd == Decimal("55.00")
+    assert cf.bal["USD"] == Decimal("1610.00")
+    assert cf.today["USD"] == Decimal("55.00")
 
 
 def test_bad_rows_skipped_with_exceptions():
     cf, exc = load_ledger(FIXTURES / "ledger_bad_rows.csv", today=TODAY)
     assert cf is not None
     # Two valid USD rows on today: 55 + 20
-    assert cf.today_usd == Decimal("75.00")
-    assert cf.today_chf == Decimal("0.00")
+    assert cf.today["USD"] == Decimal("75.00")
+    assert cf.today["CHF"] == Decimal("0.00")
     # Three rejections logged (bad date, bad amount, JPY currency)
     joined = " | ".join(exc)
     assert "bad date" in joined
@@ -62,8 +62,8 @@ def test_header_only_returns_zero_cashflow():
     cf, exc = load_ledger(FIXTURES / "ledger_header_only.csv", today=TODAY)
     assert cf is not None
     assert exc == []
-    assert cf.today_usd == cf.today_chf == Decimal("0.00")
-    assert cf.bal_usd == cf.bal_chf == Decimal("0.00")
+    assert cf.today["USD"] == cf.today["CHF"] == Decimal("0.00")
+    assert cf.bal["USD"] == cf.bal["CHF"] == Decimal("0.00")
 
 
 def test_wrong_header_returns_gap():
@@ -75,8 +75,8 @@ def test_wrong_header_returns_gap():
 def test_row_on_first_of_month_counts_in_mtd_not_today():
     cf, _ = load_ledger(FIXTURES / "ledger_basic.csv", today=TODAY)
     # 2026-04-01 USD 500.00 is in MTD but not today
-    assert Decimal("500.00") <= cf.mtd_usd
-    assert cf.today_usd == Decimal("55.00")
+    assert Decimal("500.00") <= cf.mtd["USD"]
+    assert cf.today["USD"] == Decimal("55.00")
 
 
 def test_too_few_columns_logs_exception_and_keeps_valid_rows(tmp_path):
@@ -89,5 +89,21 @@ def test_too_few_columns_logs_exception_and_keeps_valid_rows(tmp_path):
     )
     cf, exc = load_ledger(p, today=TODAY)
     assert cf is not None
-    assert cf.today_usd == Decimal("20.00")
+    assert cf.today["USD"] == Decimal("20.00")
     assert exc == ["ledger row 2: too few columns"]
+
+
+def test_non_finite_amount_rejected_with_exception(tmp_path):
+    # Decimal accepts "Infinity" and "NaN" — these must not flow into sums.
+    p = tmp_path / "nonfinite.csv"
+    p.write_text(
+        "date,amount,currency,category,description\n"
+        "2026-04-25,Infinity,USD,deposit,bogus\n"
+        "2026-04-25,NaN,USD,deposit,also bogus\n"
+        "2026-04-25,55.00,USD,coupon,ok\n",
+        encoding="utf-8",
+    )
+    cf, exc = load_ledger(p, today=TODAY)
+    assert cf is not None
+    assert cf.today["USD"] == Decimal("55.00")
+    assert sum("non-finite" in e for e in exc) == 2
