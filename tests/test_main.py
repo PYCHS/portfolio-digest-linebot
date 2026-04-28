@@ -2,6 +2,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
+
 import src.main as main_module
 from src.main import main
 
@@ -107,14 +109,89 @@ def test_dry_run_renders_message_with_data_from_all_sources(
     assert "Bal:   USD 1,055.00 | CHF 0.00" in out
 
 
-def test_default_run_without_dry_run_exits_with_error_until_m7(
+def test_default_run_renders_to_stdout_without_pushing(
     tmp_path, monkeypatch, requests_mock, capsys
 ):
     paths = _write_files(tmp_path)
     _setup_env(monkeypatch, paths)
     _setup_http(requests_mock)
+    # Make absolutely sure no env-driven push is attempted
+    monkeypatch.delenv("LINE_CHANNEL_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("LINE_GROUP_ID", raising=False)
 
     rc = main([])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Daily Investment Digest" in out
+    # No POST to LINE was made
+    assert not any("line.me" in r.url for r in requests_mock.request_history)
+
+
+def test_push_flag_sends_rendered_message_to_line_group(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+    monkeypatch.setenv("LINE_GROUP_ID", "C-test-group")
+    requests_mock.post("https://api.line.me/v2/bot/message/push", status_code=200, json={})
+
+    rc = main(["--push"])
+    assert rc == 0
+
+    push_reqs = [r for r in requests_mock.request_history if "line.me" in r.url]
+    assert len(push_reqs) == 1
+    body = push_reqs[0].json()
+    assert body["to"] == "C-test-group"
+    assert body["messages"][0]["type"] == "text"
+    assert "Daily Investment Digest" in body["messages"][0]["text"]
+    assert push_reqs[0].headers["Authorization"] == "Bearer test-token"
+
+    out = capsys.readouterr().out
+    assert "(pushed to LINE)" in out
+
+
+def test_push_without_required_env_returns_rc2(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.delenv("LINE_CHANNEL_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("LINE_GROUP_ID", raising=False)
+
+    rc = main(["--push"])
     assert rc == 2
     err = capsys.readouterr().err
-    assert "LINE push is not yet implemented" in err
+    assert "LINE_CHANNEL_ACCESS_TOKEN" in err
+    # No HTTP POST attempted
+    assert not any("line.me" in r.url for r in requests_mock.request_history)
+
+
+def test_push_failure_returns_rc3(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+    monkeypatch.setenv("LINE_GROUP_ID", "C-test-group")
+    requests_mock.post(
+        "https://api.line.me/v2/bot/message/push",
+        status_code=401,
+        json={"message": "Authentication failed"},
+    )
+
+    rc = main(["--push"])
+    assert rc == 3
+    err = capsys.readouterr().err
+    assert "LINE push failed" in err
+    assert "401" in err
+
+
+def test_push_and_dry_run_are_mutually_exclusive(capsys):
+    with pytest.raises(SystemExit):
+        main(["--push", "--dry-run"])
+    err = capsys.readouterr().err
+    assert "not allowed with" in err.lower()

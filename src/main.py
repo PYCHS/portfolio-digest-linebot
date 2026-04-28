@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .formatter import render
+from .line_client import push_message
 from .models import DigestInput
 from .sources.fx import fetch_fx
 from .sources.ledger import load_ledger
@@ -86,10 +87,16 @@ def build_digest(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="portfolio-digest")
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--dry-run",
         action="store_true",
-        help="Render the digest to stdout instead of pushing to LINE.",
+        help="Render the digest to stdout (the default; explicit alias).",
+    )
+    mode.add_argument(
+        "--push",
+        action="store_true",
+        help="Render the digest AND push it to the configured LINE group.",
     )
     args = parser.parse_args(argv)
 
@@ -111,15 +118,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     message = render(digest)
 
-    if args.dry_run:
+    if not args.push:
+        # Default and --dry-run both stay safe: render to stdout, no push.
         sys.stdout.write(message)
         return 0
 
-    sys.stderr.write(
-        "error: LINE push is not yet implemented (lands in M7).\n"
-        "       use --dry-run to render the digest to stdout.\n"
-    )
-    return 2
+    token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+    group_id = os.environ.get("LINE_GROUP_ID", "")
+    if not token or not group_id:
+        sys.stderr.write(
+            "error: --push requires LINE_CHANNEL_ACCESS_TOKEN and LINE_GROUP_ID in env.\n"
+        )
+        return 2
+
+    ok, err = push_message(text=message, group_id=group_id, access_token=token)
+    if not ok:
+        sys.stderr.write(f"error: LINE push failed: {err}\n")
+        return 3
+    sys.stdout.write(message)
+    sys.stdout.write("\n(pushed to LINE)\n")
+    return 0
 
 
 if __name__ == "__main__":

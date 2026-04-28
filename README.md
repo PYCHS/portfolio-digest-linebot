@@ -62,14 +62,17 @@ cp data/positions.example.csv      private/positions.csv
 ## Running locally
 
 ```bash
-# Dry run — prints the rendered message, does not push to LINE
-python -m src.main --dry-run
-
-# Real run — pushes to LINE_GROUP_ID
+# Default — renders the digest to stdout, never touches LINE
 python -m src.main
+python -m src.main --dry-run    # explicit alias for the default
+
+# Real run — renders AND pushes to the configured LINE group
+python -m src.main --push
 ```
 
-> The CLI is wired up in M6. Earlier milestones expose components via tests.
+`--push` requires `LINE_CHANNEL_ACCESS_TOKEN` and `LINE_GROUP_ID` in the environment. If either is missing the CLI exits with rc=2 before any network call. A failed push (e.g. 401, 5xx) exits with rc=3 and the LINE error message is printed to stderr.
+
+`--push` and `--dry-run` are mutually exclusive — argparse enforces it.
 
 ## Tests
 
