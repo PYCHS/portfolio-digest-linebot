@@ -131,6 +131,181 @@ def test_direct_feed_network_error_logged_and_run_does_not_crash(requests_mock, 
     assert any("ACME" in e and "ConnectTimeout" in e for e in exc)
 
 
+def test_issuer_id_falls_back_to_name(tmp_path, requests_mock):
+    """When `id` is omitted, `name` becomes the issuer label so the issuer
+    isn't silently skipped (and the digest line still reads `<name>: <title>`)."""
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - name: Pfizer\n"
+        "    rss:\n"
+        "      - https://example.com/pfizer.rss\n"
+        "settings:\n"
+        "  lookback_hours: 24\n"
+        "  max_items_per_issuer: 1\n",
+        encoding="utf-8",
+    )
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<rss version=\"2.0\"><channel>"
+        "<item><title>Pfizer reports Q1 earnings</title>"
+        "<link>https://pfizer.com/q1</link>"
+        "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>"
+        "</channel></rss>"
+    )
+    requests_mock.get("https://example.com/pfizer.rss", text=rss)
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    assert exc == []
+    assert [i.issuer_id for i in items] == ["Pfizer"]
+
+
+def test_rss_feeds_accepted_as_alias_for_rss(tmp_path, requests_mock):
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: PFE\n"
+        "    name: Pfizer\n"
+        "    rss_feeds:\n"
+        "      - https://example.com/pfizer.rss\n"
+        "settings:\n"
+        "  lookback_hours: 24\n"
+        "  max_items_per_issuer: 1\n",
+        encoding="utf-8",
+    )
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<rss version=\"2.0\"><channel>"
+        "<item><title>Pfizer headline</title>"
+        "<link>https://pfizer.com/1</link>"
+        "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>"
+        "</channel></rss>"
+    )
+    requests_mock.get("https://example.com/pfizer.rss", text=rss)
+
+    items, _ = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    assert [i.issuer_id for i in items] == ["PFE"]
+    # The configured RSS URL was actually hit (not the Google News fallback).
+    assert any("pfizer.rss" in r.url for r in requests_mock.request_history)
+
+
+def test_query_accepted_as_alias_for_google_news_query(tmp_path, requests_mock):
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: NSL\n"
+        "    name: 南山人壽\n"
+        "    query: 南山人壽 bond credit rating\n"
+        "settings:\n"
+        "  lookback_hours: 24\n"
+        "  max_items_per_issuer: 1\n",
+        encoding="utf-8",
+    )
+    requests_mock.get(GN_URL, text='<?xml version="1.0"?><rss><channel></channel></rss>')
+
+    fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    gn_calls = [r for r in requests_mock.request_history if GN_URL in r.url]
+    assert len(gn_calls) == 1
+    # ASCII portions of the query survive URL-encoding intact; check those.
+    assert "bond" in gn_calls[0].url and "credit" in gn_calls[0].url
+
+
+def test_top_level_lookback_hours_honored_when_settings_lacks_it(tmp_path, requests_mock):
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "lookback_hours: 1\n"  # 1h window; the RSS item below is 6h old
+        "issuers:\n"
+        "  - id: ACME\n"
+        "    name: ACME\n"
+        "    rss:\n"
+        "      - https://example.com/acme/press.rss\n"
+        "settings:\n"
+        "  max_items_per_issuer: 1\n",
+        encoding="utf-8",
+    )
+    six_hours_ago = (NOW - timedelta(hours=6)).strftime("%a, %d %b %Y %H:%M:%S +0000")
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        f"<rss version=\"2.0\"><channel>"
+        f"<item><title>Old ACME news</title>"
+        f"<link>https://acme.com/1</link>"
+        f"<pubDate>{six_hours_ago}</pubDate></item>"
+        f"</channel></rss>"
+    )
+    requests_mock.get(ACME_RSS_URL, text=rss)
+    requests_mock.get(GN_URL, text='<?xml version="1.0"?><rss><channel></channel></rss>')
+
+    items, _ = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    assert items == []  # filtered out by the top-level 1h lookback
+
+
+def test_per_issuer_alert_keywords_combine_with_global_list(tmp_path, requests_mock):
+    """A title hitting *only* a per-issuer keyword still alerts, and a title
+    hitting *only* the global list still alerts."""
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: NSL\n"
+        "    name: 南山人壽\n"
+        "    rss:\n"
+        "      - https://example.com/nsl.rss\n"
+        "    alert_keywords:\n"
+        "      - 降評\n"
+        "settings:\n"
+        "  lookback_hours: 24\n"
+        "  max_items_per_issuer: 1\n"
+        "  alert_keywords:\n"
+        "    - downgrade\n",
+        encoding="utf-8",
+    )
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<rss version=\"2.0\"><channel>"
+        "<item><title>南山人壽遭穆迪降評</title>"
+        "<link>https://x/1</link>"
+        "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>"
+        "</channel></rss>"
+    )
+    requests_mock.get("https://example.com/nsl.rss", text=rss)
+
+    items, _ = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    assert len(items) == 1
+    assert items[0].is_alert is True
+
+
+def test_user_schema_does_not_silently_skip_any_issuer(tmp_path, requests_mock):
+    """Regression for the schema-mismatch bug: a watchlist using the richer
+    schema (no `id`, `rss_feeds`, `query`, top-level `lookback_hours`,
+    per-issuer `alert_keywords`) must reach Google News for every enabled
+    issuer instead of being silently skipped."""
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "lookback_hours: 24\n"
+        "issuers:\n"
+        "  - name: 南山人壽\n"
+        "    query: 南山人壽 bond credit rating\n"
+        "    rss_feeds: []\n"
+        "    alert_keywords: [降評]\n"
+        "  - name: Pfizer\n"
+        "    query: Pfizer bond credit rating\n"
+        "    rss_feeds: []\n"
+        "    alert_keywords: [downgrade]\n"
+        "  - name: Google\n"
+        "    query: Alphabet Google bond\n"
+        "    rss_feeds: []\n"
+        "settings:\n"
+        "  max_items_per_issuer: 1\n",
+        encoding="utf-8",
+    )
+    requests_mock.get(GN_URL, text='<?xml version="1.0"?><rss><channel></channel></rss>')
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    assert exc == []
+    assert items == []  # empty mock RSS — but the point is the *attempts*
+    gn_calls = [r for r in requests_mock.request_history if GN_URL in r.url]
+    assert len(gn_calls) == 3  # one per issuer
+
+
 def test_3day_rolloff_lets_old_dedup_entry_expire_so_item_re_emerges(tmp_path, requests_mock):
     requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
     requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))

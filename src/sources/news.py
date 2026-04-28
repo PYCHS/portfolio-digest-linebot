@@ -70,11 +70,13 @@ def fetch_news(
         return None, ["news: watchlist malformed (missing 'issuers')"]
 
     settings = wl.get("settings") or {}
-    lookback_hours = int(settings.get("lookback_hours", 24))
+    # `lookback_hours` is canonically under settings, but a top-level value is
+    # accepted as an alias so a flat watchlist still works.
+    lookback_hours = int(settings.get("lookback_hours", wl.get("lookback_hours", 24)))
     max_per_issuer = int(settings.get("max_items_per_issuer", 1))
     dedup_days = int(settings.get("dedup_lookback_days", 3))
     threshold = float(settings.get("similarity_threshold", 0.85))
-    alert_keywords = [str(k).lower() for k in (settings.get("alert_keywords") or [])]
+    global_alert_keywords = [str(k).lower() for k in (settings.get("alert_keywords") or [])]
 
     seen = prune_old(load_seen(seen_path), now=now, days=dedup_days)
     cutoff = now - timedelta(hours=lookback_hours)
@@ -85,13 +87,31 @@ def fetch_news(
     for issuer in wl["issuers"]:
         if not isinstance(issuer, dict) or not issuer.get("enabled", True):
             continue
-        iid = issuer.get("id") or ""
+        # `id` is the canonical label; fall back to `name` so an issuer without
+        # an explicit id still produces a usable digest line and isn't silently
+        # skipped.
+        iid = issuer.get("id") or issuer.get("name") or ""
         if not iid:
             continue
 
-        configured_urls = list(issuer.get("rss") or [])
-        gn_query = issuer.get("google_news_query") or issuer.get("name") or iid
+        # `rss` is canonical; `rss_feeds` is accepted as an alias.
+        configured_urls = list(issuer.get("rss") or issuer.get("rss_feeds") or [])
+        # `google_news_query` is canonical; `query` is accepted as an alias.
+        gn_query = (
+            issuer.get("google_news_query")
+            or issuer.get("query")
+            or issuer.get("name")
+            or iid
+        )
         gn_url = GOOGLE_NEWS_RSS.format(q=quote_plus(str(gn_query)))
+
+        # Per-issuer alert_keywords stack on top of the global list so a
+        # watchlist can mix shared terms (e.g. "downgrade") with issuer-
+        # specific ones (e.g. Chinese-language regulatory terms).
+        issuer_alert_keywords = [
+            str(k).lower() for k in (issuer.get("alert_keywords") or [])
+        ]
+        effective_alert_keywords = global_alert_keywords + issuer_alert_keywords
 
         # Try configured RSS feeds first; fall back to Google News only if none yielded entries.
         candidate_entries: list[tuple[dict[str, Any], str]] = []
@@ -126,7 +146,7 @@ def fetch_news(
 
             seen.append(SeenEntry(title_norm=normalize(title), first_seen=now.isoformat()))
             haystack = title.lower()
-            is_alert = any(k in haystack for k in alert_keywords if k)
+            is_alert = any(k in haystack for k in effective_alert_keywords if k)
             items.append(
                 NewsItem(
                     issuer_id=iid,
