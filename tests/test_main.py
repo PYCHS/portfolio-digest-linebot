@@ -1,0 +1,120 @@
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import src.main as main_module
+from src.main import main
+
+TPE = ZoneInfo("Asia/Taipei")
+NOW = datetime(2026, 4, 25, 12, 0, 0, tzinfo=TPE)
+
+
+def _write_files(tmp_path: Path) -> dict[str, Path]:
+    ledger = tmp_path / "ledger.csv"
+    ledger.write_text(
+        "date,amount,currency,category,description\n"
+        "2026-04-01,1000.00,USD,deposit,April funding\n"
+        "2026-04-25,55.00,USD,coupon,Coupon today\n",
+        encoding="utf-8",
+    )
+    positions = tmp_path / "positions.csv"
+    positions.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Issuer Alpha,XS0000000001,20250101,10000,5.00,2030,"
+        "98.50,985000.00,50000.00,25000.00,5.20,5.0761,11/01;5/01\n",
+        encoding="utf-8",
+    )
+    watchlist = tmp_path / "watchlist.yaml"
+    watchlist.write_text(
+        "issuers:\n"
+        "  - id: ACME\n"
+        "    name: ACME Holdings AG\n"
+        "    rss:\n"
+        "      - https://example.com/acme.rss\n"
+        "    enabled: true\n"
+        "settings:\n"
+        "  lookback_hours: 24\n"
+        "  max_items_per_issuer: 1\n"
+        "  dedup_lookback_days: 3\n"
+        "  similarity_threshold: 0.85\n"
+        "  alert_keywords: []\n",
+        encoding="utf-8",
+    )
+    seen = tmp_path / "seen.json"
+    return {"ledger": ledger, "positions": positions, "watchlist": watchlist, "seen": seen}
+
+
+def _setup_env(monkeypatch, paths: dict[str, Path]) -> None:
+    monkeypatch.setenv("LEDGER_PATH", str(paths["ledger"]))
+    monkeypatch.setenv("POSITIONS_PATH", str(paths["positions"]))
+    monkeypatch.setenv("WATCHLIST_PATH", str(paths["watchlist"]))
+    monkeypatch.setenv("NEWS_SEEN_PATH", str(paths["seen"]))
+    monkeypatch.setenv("TIMEZONE", "Asia/Taipei")
+    monkeypatch.setattr(main_module, "_now_in_tz", lambda _tz: NOW)
+
+
+def _setup_http(requests_mock) -> None:
+    requests_mock.get(
+        "https://api.frankfurter.app/latest",
+        json={"date": "2026-04-25", "rates": {"CHF": 0.9123}},
+    )
+    requests_mock.get(
+        "https://api.frankfurter.app/2026-04-24",
+        json={"date": "2026-04-24", "rates": {"CHF": 0.9134}},
+    )
+    requests_mock.get(
+        "https://example.com/acme.rss",
+        text=(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            "<rss version=\"2.0\"><channel>"
+            "<title>ACME Press</title>"
+            "<item>"
+            "<title>ACME Q1 results in line with guidance</title>"
+            "<link>https://acme.com/q1</link>"
+            "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate>"
+            "</item>"
+            "</channel></rss>"
+        ),
+    )
+
+
+def test_dry_run_renders_message_with_data_from_all_sources(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+
+    rc = main(["--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr().out
+
+    assert out.startswith("【Daily Investment Digest】2026-04-25 (Asia/Taipei)")
+    assert "✅ Status: All clear" in out
+    # News from RSS
+    assert "ACME: ACME Q1 results in line with guidance" in out
+    # FX (rates rounded to 4dp; DoD = (0.9123 - 0.9134) / 0.9134 * 100 = -0.12)
+    assert "USD/CHF: 0.9123 (Δ -0.12% DoD)" in out
+    assert "CHF/USD: 1.0961" in out
+    # Snapshot
+    assert "Total Cost: 985,000.00 USD" in out
+    assert "Est. Annual Coupon: 50,000.00 USD" in out
+    # Cashflow: today=55.00 USD, MTD=1055.00 USD, both 0 CHF
+    assert "Today: +55.00 USD | +0.00 CHF" in out
+    assert "MTD:   +1,055.00 USD | +0.00 CHF" in out
+    assert "Bal:   USD 1,055.00 | CHF 0.00" in out
+
+
+def test_default_run_without_dry_run_exits_with_error_until_m7(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+
+    rc = main([])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "LINE push is not yet implemented" in err
