@@ -84,7 +84,61 @@ Network calls in tests are mocked (`requests-mock`). No live RSS / FX / LINE tra
 
 ## Scheduling
 
-Filled in during **M8**. Targets: GitHub Actions daily cron, Windows Task Scheduler, and Unix cron — all running `python -m src.main` once per day at the desired Asia/Taipei wall-clock time.
+The CLI is a single-shot job; schedule it once per day at the desired Asia/Taipei wall-clock time. Three options are wired up.
+
+### GitHub Actions
+
+[`.github/workflows/digest.yml`](.github/workflows/digest.yml) runs daily at **08:00 Asia/Taipei** (`0 0 * * *` UTC) and can be triggered manually from the *Actions* tab. To change the time, edit the `cron:` line — the value is in UTC.
+
+Configure repo secrets under *Settings → Secrets and variables → Actions*:
+
+| Secret | Purpose |
+|---|---|
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API token |
+| `LINE_GROUP_ID` | Target LINE group ID |
+| `WATCHLIST_YAML_B64` | base64 of `private/watchlist.yaml` |
+| `LEDGER_CSV_B64` | base64 of `private/ledger.csv` |
+| `POSITIONS_CSV_B64` | base64 of `private/positions.csv` |
+
+Encode each file once and paste the result as a secret:
+
+```bash
+# Linux
+base64 -w0 private/ledger.csv
+
+# macOS
+base64 < private/ledger.csv | tr -d '\n'
+```
+
+The decode step writes them into `private/` at the start of each run. If a data secret is unset, the workflow falls back to the committed `*.example.*` file — useful for the manual `dry-run` mode but not what you want for a real push.
+
+Scheduled runs always invoke `--push`; manual runs default to `--dry-run` and offer a `push` option in the dispatch input.
+
+### Unix cron
+
+Use the wrapper script — it resolves paths from its own location, sources `.env`, and prefers `.venv/bin/python` if present (otherwise `python3`):
+
+```cron
+# m h dom mon dow command
+0 8 * * * /path/to/portfolio-digest-linebot/scripts/run_digest.sh --push >> /path/to/portfolio-digest-linebot/private/digest.log 2>&1
+```
+
+cron uses the host's local time, so set the host TZ to `Asia/Taipei` (or pick the equivalent hour in whatever zone the host runs in).
+
+### Windows Task Scheduler
+
+The PowerShell wrapper at [`scripts/run_digest.ps1`](scripts/run_digest.ps1) mirrors the bash version. Register it as a daily task:
+
+```powershell
+$action  = New-ScheduledTaskAction `
+    -Execute "powershell.exe" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PWD\scripts\run_digest.ps1`" -Push" `
+    -WorkingDirectory $PWD
+$trigger = New-ScheduledTaskTrigger -Daily -At 8am
+Register-ScheduledTask -TaskName "PortfolioDigest" -Action $action -Trigger $trigger
+```
+
+The script prefers `.venv\Scripts\python.exe` if present, otherwise `python` on PATH. Set the host time zone to `Asia/Taipei` (or adjust `-At`).
 
 ## Milestone plan
 
@@ -98,4 +152,4 @@ Filled in during **M8**. Targets: GitHub Actions daily cron, Windows Task Schedu
 | M5 | News source + dedup + alert keywords |
 | M6 | Orchestrator, partial-failure isolation, `--dry-run`, structured logging |
 | M7 | LINE client + secret-hygiene test |
-| M8 | Scheduling (GitHub Actions / cron / Task Scheduler) |
+| M8 | Scheduling (GitHub Actions / cron / Task Scheduler) ✅ |

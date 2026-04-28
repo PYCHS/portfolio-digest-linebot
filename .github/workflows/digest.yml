@@ -1,0 +1,68 @@
+name: Daily digest
+
+on:
+  schedule:
+    # 08:00 Asia/Taipei (no DST) = 00:00 UTC. Edit to change delivery time.
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - push
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TIMEZONE: Asia/Taipei
+      LOG_LEVEL: INFO
+      LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+      LINE_GROUP_ID: ${{ secrets.LINE_GROUP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -e .
+
+      - name: Materialize private files from secrets
+        env:
+          WATCHLIST_YAML_B64: ${{ secrets.WATCHLIST_YAML_B64 }}
+          LEDGER_CSV_B64: ${{ secrets.LEDGER_CSV_B64 }}
+          POSITIONS_CSV_B64: ${{ secrets.POSITIONS_CSV_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p private
+          if [ -n "${WATCHLIST_YAML_B64:-}" ]; then
+            printf '%s' "$WATCHLIST_YAML_B64" | base64 -d > private/watchlist.yaml
+          else
+            cp config/watchlist.example.yaml private/watchlist.yaml
+          fi
+          if [ -n "${LEDGER_CSV_B64:-}" ]; then
+            printf '%s' "$LEDGER_CSV_B64" | base64 -d > private/ledger.csv
+          else
+            cp data/ledger.example.csv private/ledger.csv
+          fi
+          if [ -n "${POSITIONS_CSV_B64:-}" ]; then
+            printf '%s' "$POSITIONS_CSV_B64" | base64 -d > private/positions.csv
+          else
+            cp data/positions.example.csv private/positions.csv
+          fi
+
+      - name: Run digest
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.mode }}" = "push" ]; then
+            python -m src.main --push
+          else
+            python -m src.main --dry-run
+          fi
