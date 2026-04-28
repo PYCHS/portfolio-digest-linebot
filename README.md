@@ -112,6 +112,16 @@ base64 < private/ledger.csv | tr -d '\n'
 
 The decode step writes them into `private/` at the start of each run. If a data secret is unset, the workflow falls back to the committed `*.example.*` file — useful for the manual `dry-run` mode but not what you want for a real push.
 
+#### Refreshing data secrets
+
+When `private/watchlist.yaml`, `private/ledger.csv`, or `private/positions.csv` changes, re-encode the changed file and update the matching `*_B64` secret (*Settings → Secrets and variables → Actions → click the secret → Update*). The other two stay as-is. With the `gh` CLI authenticated against this repo, you can update one in place:
+
+```bash
+gh secret set LEDGER_CSV_B64 --body "$(base64 < private/ledger.csv | tr -d '\n')"
+```
+
+The LINE token and group ID don't need refreshing unless you rotate the channel token or move to a different group.
+
 Scheduled runs always invoke `--push`; manual runs default to `--dry-run` and offer a `push` option in the dispatch input.
 
 ### Unix cron
