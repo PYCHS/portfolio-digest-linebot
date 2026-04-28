@@ -47,10 +47,11 @@ jobs:
           else
             cp config/watchlist.example.yaml private/watchlist.yaml
           fi
+          # Ledger is intentionally optional. If the secret is unset, leave
+          # private/ledger.csv absent — the source treats that as a clean
+          # zero-Cashflow rather than seeding a real push with example data.
           if [ -n "${LEDGER_CSV_B64:-}" ]; then
             printf '%s' "$LEDGER_CSV_B64" | base64 -d > private/ledger.csv
-          else
-            cp data/ledger.example.csv private/ledger.csv
           fi
           if [ -n "${POSITIONS_CSV_B64:-}" ]; then
             printf '%s' "$POSITIONS_CSV_B64" | base64 -d > private/positions.csv

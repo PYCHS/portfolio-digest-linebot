@@ -195,3 +195,25 @@ def test_push_and_dry_run_are_mutually_exclusive(capsys):
         main(["--push", "--dry-run"])
     err = capsys.readouterr().err
     assert "not allowed with" in err.lower()
+
+
+def test_dry_run_without_ledger_renders_zero_cashflow_without_notes_noise(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    """Ledger is optional — running with no ledger.csv should produce a clean
+    digest: Cashflow shows zeros, and no Data-gap / exception line mentions
+    the ledger."""
+    paths = _write_files(tmp_path)
+    paths["ledger"] = tmp_path / "no_ledger.csv"  # never created
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+
+    rc = main(["--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr().out
+
+    assert "Today: +0.00 USD | +0.00 CHF" in out
+    assert "MTD:   +0.00 USD | +0.00 CHF" in out
+    assert "Bal:   USD 0.00 | CHF 0.00" in out
+    assert "ledger: file not found" not in out
+    assert "Data gaps: Ledger" not in out

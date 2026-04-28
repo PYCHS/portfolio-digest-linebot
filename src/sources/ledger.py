@@ -17,11 +17,20 @@ def load_ledger(
 ) -> tuple[Cashflow | None, list[str]]:
     """Read a ledger CSV and aggregate Today/MTD/Bal per supported currency.
 
-    Returns (Cashflow, exceptions) on success (possibly with bad rows logged),
-    or (None, [reason]) if the file or header is unusable.
+    A missing file is a supported opt-out — the ledger tracks *actuals*, and
+    the user may legitimately not be tracking any yet. In that case we return
+    a zero-Cashflow with no exception so the digest renders cleanly without a
+    Notes/Data-gap entry.
+
+    A broken file (empty / bad header / unreadable) still returns
+    (None, [reason]) so the digest surfaces it.
     """
+    today_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
+    mtd_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
+    bal_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
+
     if not path.exists():
-        return None, ["ledger: file not found"]
+        return Cashflow(today=today_flow, mtd=mtd_flow, bal=bal_flow), []
 
     try:
         with path.open(encoding="utf-8-sig", newline="") as f:
@@ -36,9 +45,6 @@ def load_ledger(
     except OSError as e:
         return None, [f"ledger: read error: {e}"]
 
-    today_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
-    mtd_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
-    bal_flow: dict[str, Decimal] = {ccy: ZERO for ccy in SUPPORTED_CURRENCIES}
     exceptions: list[str] = []
     unsupported: list[str] = []
 

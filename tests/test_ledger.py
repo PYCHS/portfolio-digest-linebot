@@ -44,10 +44,16 @@ def test_bad_rows_skipped_with_exceptions():
     assert len(exc) == 3
 
 
-def test_missing_file_returns_gap():
+def test_missing_file_returns_zero_cashflow_no_exception():
+    """The ledger tracks actuals and is intentionally optional. A missing file
+    is a clean opt-out, not a broken state — render zeros and don't add a
+    Data-gap / exception line that would clutter the daily digest."""
     cf, exc = load_ledger(FIXTURES / "does_not_exist.csv", today=TODAY)
-    assert cf is None
-    assert exc == ["ledger: file not found"]
+    assert cf is not None
+    assert exc == []
+    assert cf.today["USD"] == cf.today["CHF"] == Decimal("0.00")
+    assert cf.mtd["USD"] == cf.mtd["CHF"] == Decimal("0.00")
+    assert cf.bal["USD"] == cf.bal["CHF"] == Decimal("0.00")
 
 
 def test_empty_file_returns_gap(tmp_path):

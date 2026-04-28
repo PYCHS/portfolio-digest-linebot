@@ -32,10 +32,21 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e .[dev]
 cp .env.example .env               # then fill in values
 mkdir -p private
-cp config/watchlist.example.yaml private/watchlist.yaml
-cp data/ledger.example.csv         private/ledger.csv
+cp config/watchlist.example.yaml   private/watchlist.yaml
 cp data/positions.example.csv      private/positions.csv
+# Optional — only if you want actual cashflows tracked. Skip to render zeros.
+cp data/ledger.example.csv         private/ledger.csv
 ```
+
+### Data files
+
+| File | Meaning | Required? |
+|---|---|---|
+| `private/watchlist.yaml` | News-source watchlist | yes |
+| `private/positions.csv` | Holdings + coupon schedule (used by the Snapshot section) | yes |
+| `private/ledger.csv` | **Actual** cash movements (deposits, coupons received, fees) | **optional** — missing file renders the Cashflow section as zeros |
+
+`ledger.csv` and `positions.csv` are deliberately distinct: ledger captures actuals, positions captures holdings and the *expected* coupon schedule. A future milestone (M9) will add a separate Projected Cashflow section computed from the positions schedule — those projections will not be merged into the ledger and will be clearly labeled as expected.
 
 ## Environment variables
 
@@ -97,8 +108,8 @@ Configure repo secrets under *Settings → Secrets and variables → Actions*:
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API token |
 | `LINE_GROUP_ID` | Target LINE group ID |
 | `WATCHLIST_YAML_B64` | base64 of `private/watchlist.yaml` |
-| `LEDGER_CSV_B64` | base64 of `private/ledger.csv` |
 | `POSITIONS_CSV_B64` | base64 of `private/positions.csv` |
+| `LEDGER_CSV_B64` | base64 of `private/ledger.csv` — **optional**; omit to render Cashflow as zeros |
 
 Encode each file once and paste the result as a secret:
 
@@ -163,3 +174,4 @@ The script prefers `.venv\Scripts\python.exe` if present, otherwise `python` on 
 | M6 | Orchestrator, partial-failure isolation, `--dry-run`, structured logging |
 | M7 | LINE client + secret-hygiene test |
 | M8 | Scheduling (GitHub Actions / cron / Task Scheduler) ✅ |
+| M9 | Projected Cashflow section computed from positions schedule (separate from ledger actuals) — planned |
