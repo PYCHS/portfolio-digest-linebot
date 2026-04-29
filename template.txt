@@ -3,7 +3,7 @@
 ✅ Status: All clear
 （若偵測重大事件→ ⚠️ Status: Alert）
 
-📰 News (last 24h, 0–1 per issuer)
+📰 News (0–1 per issuer)
 - {TICKER/Issuer}: {一句重點} ({source})
 - ...
 

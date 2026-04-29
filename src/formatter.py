@@ -14,7 +14,7 @@ def render(d: DigestInput) -> str:
     lines.append("⚠️ Status: Alert" if is_alert else "✅ Status: All clear")
     lines.append("")
 
-    lines.append("\U0001f4f0 News (last 24h, 0–1 per issuer)")
+    lines.append("\U0001f4f0 News (0–1 per issuer)")
     if d.news is None:
         lines.append("- (unavailable)")
     elif not d.news:

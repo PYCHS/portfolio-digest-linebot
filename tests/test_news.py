@@ -306,6 +306,22 @@ def test_user_schema_does_not_silently_skip_any_issuer(tmp_path, requests_mock):
     assert len(gn_calls) == 3  # one per issuer
 
 
+def test_news_fetch_sends_user_agent_header(requests_mock, tmp_path):
+    """SEC EDGAR rejects the default `python-requests` UA with 403, so every
+    feed fetch must carry a non-default User-Agent."""
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+
+    assert requests_mock.request_history, "no HTTP requests recorded"
+    for r in requests_mock.request_history:
+        ua = r.headers.get("User-Agent", "")
+        assert ua and not ua.startswith("python-requests"), (
+            f"request to {r.url} sent unsuitable UA: {ua!r}"
+        )
+
+
 def test_news_item_captures_link_from_rss_entry(requests_mock, tmp_path):
     """RSS `<link>` round-trips into NewsItem.link so the formatter can render
     a tappable URL alongside the headline in LINE messages."""

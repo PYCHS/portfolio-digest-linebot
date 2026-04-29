@@ -14,10 +14,14 @@ from ..models import NewsItem
 
 DEFAULT_TIMEOUT = 10.0
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={q}"
+# SEC EDGAR rejects the default `python-requests/x.y` UA with 403; setting
+# any meaningful UA satisfies their fair-access policy. Other feeds ignore
+# the header, so we send one consistent value for every fetch.
+USER_AGENT = "portfolio-digest-linebot/0.1"
 
 
 def _fetch_entries(url: str, timeout: float) -> list[dict[str, Any]]:
-    resp = requests.get(url, timeout=timeout)
+    resp = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
     resp.raise_for_status()
     parsed = feedparser.parse(resp.text)
     return list(parsed.entries)
