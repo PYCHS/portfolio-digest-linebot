@@ -54,12 +54,19 @@ def fetch_news(
     *,
     now: datetime,
     timeout: float = DEFAULT_TIMEOUT,
+    persist_seen: bool = True,
 ) -> tuple[list[NewsItem] | None, list[str]]:
     """Fetch per-issuer news with cross-run deduplication.
 
     Returns (list, exceptions) on success. The list may be empty if no fresh
     items survive the dedup filter; that's a "no items" state, distinct from
     None which means the watchlist itself was unusable.
+
+    `persist_seen` controls whether newly-rendered items get written back to
+    seen_path. Default True is right for the daily push (so tomorrow's run
+    doesn't re-send the same headlines). Pass False for dry-run previews so
+    the preview doesn't consume dedup state — otherwise running --dry-run
+    immediately followed by --push would surface different items in each.
     """
     if not watchlist_path.exists():
         return None, ["news: watchlist file not found"]
@@ -162,5 +169,6 @@ def fetch_news(
             )
             chosen += 1
 
-    save_seen(seen_path, seen)
+    if persist_seen:
+        save_seen(seen_path, seen)
     return items, exceptions

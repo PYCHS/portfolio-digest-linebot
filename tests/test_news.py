@@ -306,6 +306,28 @@ def test_user_schema_does_not_silently_skip_any_issuer(tmp_path, requests_mock):
     assert len(gn_calls) == 3  # one per issuer
 
 
+def test_persist_seen_false_does_not_write_seen_file_and_yields_repeatable_items(
+    requests_mock, tmp_path
+):
+    """A preview run (persist_seen=False) must not consume dedup state — the
+    same items should re-emerge on a second call against the same seen path.
+    Otherwise --dry-run silently steals headlines from the next --push."""
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+    seen = tmp_path / "seen.json"
+
+    first, _ = fetch_news(WATCHLIST, seen, now=NOW, persist_seen=False)
+    assert any(i.issuer_id == "ACME" for i in first)
+    assert not seen.exists(), "preview run wrote seen.json"
+
+    second, _ = fetch_news(
+        WATCHLIST, seen, now=NOW + timedelta(hours=1), persist_seen=False
+    )
+    assert any(i.issuer_id == "ACME" for i in second), (
+        "ACME item disappeared on second preview — preview is mutating dedup state"
+    )
+
+
 def test_news_fetch_sends_user_agent_header(requests_mock, tmp_path):
     """SEC EDGAR rejects the default `python-requests` UA with 403, so every
     feed fetch must carry a non-default User-Agent."""

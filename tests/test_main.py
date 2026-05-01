@@ -197,6 +197,38 @@ def test_push_and_dry_run_are_mutually_exclusive(capsys):
     assert "not allowed with" in err.lower()
 
 
+def test_dry_run_does_not_write_news_seen_file(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    """Dry-run is a preview — it must not consume dedup state. Otherwise
+    running --dry-run before --push surfaces different items in each."""
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    assert not paths["seen"].exists()
+
+    rc = main(["--dry-run"])
+    assert rc == 0
+    assert not paths["seen"].exists(), "--dry-run wrote seen.json"
+
+
+def test_push_writes_news_seen_file(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    """--push commits dedup state so tomorrow's run doesn't re-send the same
+    headlines."""
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+    monkeypatch.setenv("LINE_GROUP_ID", "C-test-group")
+    requests_mock.post("https://api.line.me/v2/bot/message/push", status_code=200, json={})
+
+    rc = main(["--push"])
+    assert rc == 0
+    assert paths["seen"].exists(), "--push did not write seen.json"
+
+
 def test_dry_run_without_ledger_renders_zero_cashflow_without_notes_noise(
     tmp_path, monkeypatch, requests_mock, capsys
 ):

@@ -33,18 +33,24 @@ def build_digest(
     seen_path: Path,
     ledger_path: Path,
     positions_path: Path,
+    persist_seen: bool = True,
 ) -> DigestInput:
     """Run all four collectors in isolation and assemble a DigestInput.
 
     `now` is used for news (datetime; powers lookback_hours and dedup rolloff).
     `today = now.date()` is threaded into the ledger and positions collectors
     so they share the same Asia/Taipei calendar day.
+
+    `persist_seen` is forwarded to the news collector. Set False for previews
+    (--dry-run / default) so the preview doesn't consume dedup state.
     """
     today = now.date()
     exceptions: list[str] = []
 
     try:
-        news, news_exc = fetch_news(watchlist_path, seen_path, now=now)
+        news, news_exc = fetch_news(
+            watchlist_path, seen_path, now=now, persist_seen=persist_seen
+        )
         exceptions.extend(news_exc)
     except Exception as e:
         log.exception("news collector raised")
@@ -115,6 +121,9 @@ def main(argv: list[str] | None = None) -> int:
         seen_path=Path(os.environ.get("NEWS_SEEN_PATH", "private/.news_seen.json")),
         ledger_path=Path(os.environ.get("LEDGER_PATH", "private/ledger.csv")),
         positions_path=Path(os.environ.get("POSITIONS_PATH", "private/positions.csv")),
+        # Only --push commits dedup state. Previews (default and --dry-run)
+        # leave seen.json untouched so re-running yields the same items.
+        persist_seen=args.push,
     )
     message = render(digest)
 
