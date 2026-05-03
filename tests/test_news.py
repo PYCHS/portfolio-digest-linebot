@@ -306,6 +306,60 @@ def test_user_schema_does_not_silently_skip_any_issuer(tmp_path, requests_mock):
     assert len(gn_calls) == 3  # one per issuer
 
 
+def test_direct_feeds_are_fetched_in_parallel(monkeypatch, tmp_path):
+    """Four issuers × one slow feed: sequential total would be ~0.8s (4 ×
+    0.2s); the parallel implementation should finish in roughly the slowest
+    single fetch plus thread-pool overhead. Patches _fetch_entries directly
+    so the timing reflects the orchestrator's parallelism (requests_mock
+    serializes its dispatcher under a lock, defeating thread-level timing
+    tests through the HTTP layer)."""
+    import time as _time
+    from src.sources import news as news_mod
+
+    delay = 0.2
+    fresh_pubdate = (NOW - timedelta(hours=1)).utctimetuple()
+    # Titles must be sufficiently dissimilar (the dedup similarity threshold
+    # defaults to 0.85) — otherwise the first item poisons the seen list and
+    # the others look like near-duplicates of it.
+    titles = {
+        "https://example.com/a.rss": "Alpha Corp Q1 earnings beat estimates",
+        "https://example.com/b.rss": "Beta Industries announces dividend hike",
+        "https://example.com/c.rss": "Gamma Networks files patent dispute lawsuit",
+        "https://example.com/d.rss": "Delta Holdings restructures debt portfolio",
+    }
+
+    def slow_fetch(url: str, timeout: float):
+        _time.sleep(delay)
+        return [{
+            "title": titles[url],
+            "link": url,
+            "published_parsed": fresh_pubdate,
+        }]
+
+    monkeypatch.setattr(news_mod, "_fetch_entries", slow_fetch)
+
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "settings:\n  lookback_hours: 24\n  max_items_per_issuer: 1\n"
+        "issuers:\n"
+        "  - id: A\n    rss: [https://example.com/a.rss]\n"
+        "  - id: B\n    rss: [https://example.com/b.rss]\n"
+        "  - id: C\n    rss: [https://example.com/c.rss]\n"
+        "  - id: D\n    rss: [https://example.com/d.rss]\n",
+        encoding="utf-8",
+    )
+
+    t0 = _time.monotonic()
+    items, _ = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+    elapsed = _time.monotonic() - t0
+
+    assert elapsed < 0.5, (
+        f"4 × {delay}s fetches took {elapsed:.2f}s — looks sequential "
+        f"(would be ~{4 * delay}s)"
+    )
+    assert {i.issuer_id for i in items} == {"A", "B", "C", "D"}
+
+
 def test_persist_seen_false_does_not_write_seen_file_and_yields_repeatable_items(
     requests_mock, tmp_path
 ):
