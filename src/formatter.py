@@ -7,18 +7,24 @@ from .models import DigestInput
 
 def render(d: DigestInput) -> str:
     lines: list[str] = []
-    lines.append(f"【Daily Investment Digest】{d.date_str} (Asia/Taipei)")
+    lines.append(
+        f"【Daily Investment Digest (每日投資摘要)】{d.date_str} (Asia/Taipei)"
+    )
     lines.append("")
 
     is_alert = bool(d.news) and any(n.is_alert for n in d.news)
-    lines.append("⚠️ Status: Alert" if is_alert else "✅ Status: All clear")
+    lines.append(
+        "⚠️ Status (狀態): Alert (警報)"
+        if is_alert
+        else "✅ Status (狀態): All clear (一切正常)"
+    )
     lines.append("")
 
-    lines.append("\U0001f4f0 News (0–1 per issuer)")
+    lines.append("\U0001f4f0 News (新聞) (0–1 per issuer)")
     if d.news is None:
-        lines.append("- (unavailable)")
+        lines.append("- (unavailable / 無資料)")
     elif not d.news:
-        lines.append("- (no items)")
+        lines.append("- (no items / 無)")
     else:
         for n in d.news:
             lines.append(f"- {n.issuer_id}: {n.summary} ({n.source})")
@@ -26,9 +32,9 @@ def render(d: DigestInput) -> str:
                 lines.append(f"  {n.link}")
     lines.append("")
 
-    lines.append("\U0001f4b1 FX")
+    lines.append("\U0001f4b1 FX (匯率)")
     if d.fx is None:
-        lines.append("- (unavailable)")
+        lines.append("- (unavailable / 無資料)")
     else:
         if d.fx.usd_chf_dod_pct is None:
             dod = "Δ N/A"
@@ -38,30 +44,32 @@ def render(d: DigestInput) -> str:
         lines.append(f"- CHF/USD: {d.fx.chf_usd:.4f}")
     lines.append("")
 
-    lines.append("\U0001f4cc Portfolio Snapshot (Cost-based)")
+    lines.append("\U0001f4cc Portfolio Snapshot (投資組合快照) (Cost-based)")
     if d.snapshot is None:
-        lines.append("- (unavailable)")
+        lines.append("- (unavailable / 無資料)")
     else:
         s = d.snapshot
         for ccy in sorted(s.total_cost):
-            lines.append(f"- Total Cost: {s.total_cost[ccy]:,.2f} {ccy}")
+            lines.append(f"- Total Cost (總成本): {s.total_cost[ccy]:,.2f} {ccy}")
         for ccy in sorted(s.annual_coupon):
-            lines.append(f"- Est. Annual Coupon: {s.annual_coupon[ccy]:,.2f} {ccy}")
+            lines.append(
+                f"- Est. Annual Coupon (預估年息): {s.annual_coupon[ccy]:,.2f} {ccy}"
+            )
         if s.next_coupon is None:
-            lines.append("- Next Coupon (7d): none")
+            lines.append("- Next Coupon (7d) (七日內下個利息): none (無)")
         else:
             c = s.next_coupon
             lines.append(
-                f"- Next Coupon (7d): {c.issuer} {c.date.isoformat()} "
+                f"- Next Coupon (7d) (七日內下個利息): {c.issuer} {c.date.isoformat()} "
                 f"{c.amount:,.2f} {c.currency}"
             )
         for issuer in s.uncosted_issuers:
-            lines.append(f"- {issuer}: Cost unavailable")
+            lines.append(f"- {issuer}: Cost unavailable (成本不明)")
     lines.append("")
 
-    lines.append("\U0001f4b0 Cashflow (Ledger)")
+    lines.append("\U0001f4b0 Cashflow (現金流) (Ledger)")
     if d.cashflow is None:
-        lines.append("- (unavailable)")
+        lines.append("- (unavailable / 無資料)")
     else:
         cf = d.cashflow
         zero = Decimal("0.00")
@@ -71,9 +79,15 @@ def render(d: DigestInput) -> str:
         mtd_chf = cf.mtd.get("CHF", zero)
         bal_usd = cf.bal.get("USD", zero)
         bal_chf = cf.bal.get("CHF", zero)
-        lines.append(f"- Today: {today_usd:+,.2f} USD | {today_chf:+,.2f} CHF")
-        lines.append(f"- MTD:   {mtd_usd:+,.2f} USD | {mtd_chf:+,.2f} CHF")
-        lines.append(f"- Bal:   USD {bal_usd:,.2f} | CHF {bal_chf:,.2f}")
+        lines.append(
+            f"- Today (今日): {today_usd:+,.2f} USD | {today_chf:+,.2f} CHF"
+        )
+        lines.append(
+            f"- MTD (本月累計): {mtd_usd:+,.2f} USD | {mtd_chf:+,.2f} CHF"
+        )
+        lines.append(
+            f"- Bal (餘額): USD {bal_usd:,.2f} | CHF {bal_chf:,.2f}"
+        )
     lines.append("")
 
     gaps: list[str] = []
@@ -87,11 +101,13 @@ def render(d: DigestInput) -> str:
         gaps.append("Positions")
 
     if gaps or d.exceptions:
-        lines.append("\U0001f9fe Notes")
+        lines.append("\U0001f9fe Notes (備註)")
         if gaps:
-            lines.append(f"- Data gaps: {', '.join(gaps)} unavailable")
+            lines.append(
+                f"- Data gaps (資料缺漏): {', '.join(gaps)} unavailable"
+            )
         if d.exceptions:
-            lines.append(f"- Exceptions: {'; '.join(d.exceptions)}")
+            lines.append(f"- Exceptions (異常): {'; '.join(d.exceptions)}")
         lines.append("")
 
     while lines and lines[-1] == "":

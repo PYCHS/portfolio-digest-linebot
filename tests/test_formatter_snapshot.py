@@ -90,8 +90,8 @@ def test_status_flips_to_alert_when_news_item_is_alert():
         exceptions=d.exceptions,
     )
     out = render(d_alert)
-    assert "⚠️ Status: Alert" in out
-    assert "✅ Status: All clear" not in out
+    assert "⚠️ Status (狀態): Alert (警報)" in out
+    assert "✅ Status (狀態): All clear (一切正常)" not in out
 
 
 def test_news_item_without_link_renders_without_continuation_line():
@@ -138,4 +138,7 @@ def test_next_coupon_renders_non_usd_currency():
         exceptions=base.exceptions,
     )
     out = render(d)
-    assert "- Next Coupon (7d): Issuer X 2026-05-01 100.00 CHF" in out
+    assert (
+        "- Next Coupon (7d) (七日內下個利息): Issuer X 2026-05-01 100.00 CHF"
+        in out
+    )

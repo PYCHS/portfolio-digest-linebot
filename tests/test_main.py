@@ -93,20 +93,22 @@ def test_dry_run_renders_message_with_data_from_all_sources(
     assert rc == 0
     out = capsys.readouterr().out
 
-    assert out.startswith("【Daily Investment Digest】2026-04-25 (Asia/Taipei)")
-    assert "✅ Status: All clear" in out
+    assert out.startswith(
+        "【Daily Investment Digest (每日投資摘要)】2026-04-25 (Asia/Taipei)"
+    )
+    assert "✅ Status (狀態): All clear (一切正常)" in out
     # News from RSS
     assert "ACME: ACME Q1 results in line with guidance" in out
     # FX (rates rounded to 4dp; DoD = (0.9123 - 0.9134) / 0.9134 * 100 = -0.12)
     assert "USD/CHF: 0.9123 (Δ -0.12% DoD)" in out
     assert "CHF/USD: 1.0961" in out
     # Snapshot
-    assert "Total Cost: 985,000.00 USD" in out
-    assert "Est. Annual Coupon: 50,000.00 USD" in out
+    assert "Total Cost (總成本): 985,000.00 USD" in out
+    assert "Est. Annual Coupon (預估年息): 50,000.00 USD" in out
     # Cashflow: today=55.00 USD, MTD=1055.00 USD, both 0 CHF
-    assert "Today: +55.00 USD | +0.00 CHF" in out
-    assert "MTD:   +1,055.00 USD | +0.00 CHF" in out
-    assert "Bal:   USD 1,055.00 | CHF 0.00" in out
+    assert "Today (今日): +55.00 USD | +0.00 CHF" in out
+    assert "MTD (本月累計): +1,055.00 USD | +0.00 CHF" in out
+    assert "Bal (餘額): USD 1,055.00 | CHF 0.00" in out
 
 
 def test_default_run_renders_to_stdout_without_pushing(
@@ -244,8 +246,8 @@ def test_dry_run_without_ledger_renders_zero_cashflow_without_notes_noise(
     assert rc == 0
     out = capsys.readouterr().out
 
-    assert "Today: +0.00 USD | +0.00 CHF" in out
-    assert "MTD:   +0.00 USD | +0.00 CHF" in out
-    assert "Bal:   USD 0.00 | CHF 0.00" in out
+    assert "Today (今日): +0.00 USD | +0.00 CHF" in out
+    assert "MTD (本月累計): +0.00 USD | +0.00 CHF" in out
+    assert "Bal (餘額): USD 0.00 | CHF 0.00" in out
     assert "ledger: file not found" not in out
     assert "Data gaps: Ledger" not in out

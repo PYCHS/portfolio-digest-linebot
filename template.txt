@@ -1,26 +1,26 @@
-【Daily Investment Digest】{YYYY-MM-DD} (Asia/Taipei)
+【Daily Investment Digest (每日投資摘要)】{YYYY-MM-DD} (Asia/Taipei)
 
-✅ Status: All clear
-（若偵測重大事件→ ⚠️ Status: Alert）
+✅ Status (狀態): All clear (一切正常)
+（若偵測重大事件→ ⚠️ Status (狀態): Alert (警報)）
 
-📰 News (0–1 per issuer)
+📰 News (新聞) (0–1 per issuer)
 - {TICKER/Issuer}: {一句重點} ({source})
 - ...
 
-💱 FX
+💱 FX (匯率)
 - USD/CHF: {r_usd_chf} (Δ {pct}% DoD)
 - CHF/USD: {r_chf_usd}
 
-📌 Portfolio Snapshot (Cost-based)
-- Total Cost: {amount} USD
-- Est. Annual Coupon: {amount} USD
-- Next Coupon (7d): {issuer} {date} {amount} USD
+📌 Portfolio Snapshot (投資組合快照) (Cost-based)
+- Total Cost (總成本): {amount} USD
+- Est. Annual Coupon (預估年息): {amount} USD
+- Next Coupon (7d) (七日內下個利息): {issuer} {date} {amount} USD
 
-💰 Cashflow (Ledger)
-- Today: {+/-amount} USD | {+/-amount} CHF
-- MTD:   {+/-amount} USD | {+/-amount} CHF
-- Bal:   USD {amount} | CHF {amount}
+💰 Cashflow (現金流) (Ledger)
+- Today (今日): {+/-amount} USD | {+/-amount} CHF
+- MTD (本月累計): {+/-amount} USD | {+/-amount} CHF
+- Bal (餘額): USD {amount} | CHF {amount}
 
-🧾 Notes
-- Data gaps: {News/FX/Ledger/Positions} unavailable
-- Exceptions: {short error code / reason}
+🧾 Notes (備註)
+- Data gaps (資料缺漏): {News/FX/Ledger/Positions} unavailable
+- Exceptions (異常): {short error code / reason}

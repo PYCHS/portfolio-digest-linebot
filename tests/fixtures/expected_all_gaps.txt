@@ -1,19 +1,19 @@
-【Daily Investment Digest】2026-04-25 (Asia/Taipei)
+【Daily Investment Digest (每日投資摘要)】2026-04-25 (Asia/Taipei)
 
-✅ Status: All clear
+✅ Status (狀態): All clear (一切正常)
 
-📰 News (0–1 per issuer)
-- (unavailable)
+📰 News (新聞) (0–1 per issuer)
+- (unavailable / 無資料)
 
-💱 FX
-- (unavailable)
+💱 FX (匯率)
+- (unavailable / 無資料)
 
-📌 Portfolio Snapshot (Cost-based)
-- (unavailable)
+📌 Portfolio Snapshot (投資組合快照) (Cost-based)
+- (unavailable / 無資料)
 
-💰 Cashflow (Ledger)
-- (unavailable)
+💰 Cashflow (現金流) (Ledger)
+- (unavailable / 無資料)
 
-🧾 Notes
-- Data gaps: News, FX, Ledger, Positions unavailable
-- Exceptions: ledger_csv_parse_error: 2 rows skipped
+🧾 Notes (備註)
+- Data gaps (資料缺漏): News, FX, Ledger, Positions unavailable
+- Exceptions (異常): ledger_csv_parse_error: 2 rows skipped
