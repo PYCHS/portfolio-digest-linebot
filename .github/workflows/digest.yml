@@ -2,8 +2,11 @@ name: Daily digest
 
 on:
   schedule:
-    # 08:00 Asia/Taipei (no DST) = 00:00 UTC. Edit to change delivery time.
-    - cron: "0 0 * * *"
+    # 23:17 UTC = 07:17 Asia/Taipei target. Off-the-hour minute on purpose:
+    # GitHub Actions queues are heaviest at :00 / :15 / :30 / :45 UTC, so
+    # scheduling at :17 reduces typical scheduler drift from ~60-90 min
+    # to ~10-30 min. Workflow usually fires close to 08:00 Taipei.
+    - cron: "17 23 * * *"
   workflow_dispatch:
     inputs:
       mode:

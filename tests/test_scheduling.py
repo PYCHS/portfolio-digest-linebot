@@ -31,8 +31,10 @@ def test_digest_workflow_has_daily_cron_and_manual_dispatch():
     triggers = data["on"]
     schedules = triggers.get("schedule") or []
     crons = [s["cron"] for s in schedules if "cron" in s]
-    # 08:00 Asia/Taipei (UTC+8, no DST) = 00:00 UTC.
-    assert "0 0 * * *" in crons, f"expected daily TPE cron, got {crons!r}"
+    # 23:17 UTC = ~07:17 Asia/Taipei target; the off-the-hour minute is
+    # deliberate to dodge GHA's top-of-hour scheduling queues so the run
+    # actually fires close to the intended 08:00 Taipei.
+    assert "17 23 * * *" in crons, f"expected off-hour TPE cron, got {crons!r}"
     assert "workflow_dispatch" in triggers, "manual trigger not enabled"
 
 

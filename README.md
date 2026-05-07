@@ -99,7 +99,7 @@ The CLI is a single-shot job; schedule it once per day at the desired Asia/Taipe
 
 ### GitHub Actions
 
-[`.github/workflows/digest.yml`](.github/workflows/digest.yml) runs daily at **08:00 Asia/Taipei** (`0 0 * * *` UTC) and can be triggered manually from the *Actions* tab. To change the time, edit the `cron:` line — the value is in UTC.
+[`.github/workflows/digest.yml`](.github/workflows/digest.yml) runs daily at **23:17 UTC** (~07:17 Asia/Taipei target, typically firing close to 08:00 Taipei) and can be triggered manually from the *Actions* tab. The off-the-hour minute is deliberate: GitHub Actions queues are heaviest at `:00 / :15 / :30 / :45 UTC`, and scheduling at `:17` reduces typical scheduler drift from ~60–90 min to ~10–30 min. To change the time, edit the `cron:` line — the value is in UTC.
 
 Configure repo secrets under *Settings → Secrets and variables → Actions*:
 
