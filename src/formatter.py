@@ -40,7 +40,16 @@ def render(d: DigestInput) -> str:
             dod = "Δ N/A"
         else:
             dod = f"Δ {d.fx.usd_chf_dod_pct:+.2f}% DoD"
-        lines.append(f"- USD/CHF: {d.fx.usd_chf:.4f} ({dod})")
+        # Surface staleness when the rate's as-of date isn't today (Taipei).
+        # Frankfurter publishes weekday rates around 15:00 CET, so a digest
+        # fired before then — or on a weekend / holiday — gets an earlier
+        # business day's rate; saying so up front avoids "is this today's
+        # number?" confusion.
+        if d.fx.as_of and d.fx.as_of.isoformat() != d.date_str:
+            stale = f", as of {d.fx.as_of.isoformat()}"
+        else:
+            stale = ""
+        lines.append(f"- USD/CHF: {d.fx.usd_chf:.4f} ({dod}{stale})")
         lines.append(f"- CHF/USD: {d.fx.chf_usd:.4f}")
     lines.append("")
 

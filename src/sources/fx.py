@@ -60,4 +60,12 @@ def fetch_fx(
 
     usd_chf_q = usd_chf.quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)
     chf_usd_q = (Decimal(1) / usd_chf_q).quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)
-    return FxResult(usd_chf=usd_chf_q, chf_usd=chf_usd_q, usd_chf_dod_pct=dod_pct), []
+    return (
+        FxResult(
+            usd_chf=usd_chf_q,
+            chf_usd=chf_usd_q,
+            usd_chf_dod_pct=dod_pct,
+            as_of=date_t,
+        ),
+        [],
+    )

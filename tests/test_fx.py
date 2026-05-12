@@ -1,3 +1,5 @@
+from datetime import date
+
 from decimal import Decimal
 
 import requests
@@ -18,6 +20,10 @@ def test_happy_path_full_result(requests_mock):
     assert fx.chf_usd == Decimal("1.0961")
     # (0.9123 - 0.9134) / 0.9134 * 100 = -0.12042... → -0.12
     assert fx.usd_chf_dod_pct == Decimal("-0.12")
+    # The rate's as-of date is carried through so the formatter can flag
+    # staleness when the digest fires before Frankfurter publishes today's
+    # rate.
+    assert fx.as_of == date(2026, 4, 25)
 
 
 def test_reciprocal_is_4dp_half_up(requests_mock):

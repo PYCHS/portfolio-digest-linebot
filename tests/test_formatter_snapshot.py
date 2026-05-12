@@ -94,6 +94,51 @@ def test_status_flips_to_alert_when_news_item_is_alert():
     assert "✅ Status (狀態): All clear (一切正常)" not in out
 
 
+def test_fx_line_appends_as_of_when_rate_is_stale():
+    """If the Frankfurter rate is dated to a prior business day (weekend,
+    holiday, or pre-CET-noon weekday digest), surface that on the USD/CHF
+    line so the reader doesn't think it's today's market move."""
+    base = _all_populated()
+    stale_fx = FxResult(
+        usd_chf=base.fx.usd_chf,
+        chf_usd=base.fx.chf_usd,
+        usd_chf_dod_pct=base.fx.usd_chf_dod_pct,
+        as_of=date(2026, 4, 24),  # date_str is 2026-04-25 → stale by one day
+    )
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=stale_fx,
+        snapshot=base.snapshot,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+    )
+    out = render(d)
+    assert "USD/CHF: 0.9123 (Δ -0.12% DoD, as of 2026-04-24)" in out
+
+
+def test_fx_line_omits_as_of_when_rate_matches_today():
+    """No staleness annotation when as_of matches the digest's date."""
+    base = _all_populated()
+    fresh_fx = FxResult(
+        usd_chf=base.fx.usd_chf,
+        chf_usd=base.fx.chf_usd,
+        usd_chf_dod_pct=base.fx.usd_chf_dod_pct,
+        as_of=date(2026, 4, 25),  # matches date_str
+    )
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=fresh_fx,
+        snapshot=base.snapshot,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+    )
+    out = render(d)
+    assert "USD/CHF: 0.9123 (Δ -0.12% DoD)" in out
+    assert "as of" not in out
+
+
 def test_news_item_without_link_renders_without_continuation_line():
     """When link is None/empty, the formatter must not emit an empty
     `  ` continuation line — older fixtures and any source that doesn't

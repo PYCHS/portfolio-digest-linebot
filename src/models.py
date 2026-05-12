@@ -19,6 +19,11 @@ class FxResult:
     usd_chf: Decimal
     chf_usd: Decimal
     usd_chf_dod_pct: Decimal | None
+    # Calendar date the latest rate is observed for. Frankfurter publishes
+    # weekday rates around 15:00 CET, so a digest fired earlier than that
+    # (or on a weekend / holiday) gets a rate dated to a prior business day.
+    # The formatter surfaces this when it doesn't match the digest's date.
+    as_of: date | None = None
 
 
 @dataclass(frozen=True)
