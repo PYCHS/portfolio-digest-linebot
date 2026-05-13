@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -22,13 +23,31 @@ USER_AGENT = "portfolio-digest-linebot/0.1"
 # Cap parallel fetches. Watchlists in the 7-issuer / ~20-feed range fan in
 # at one round; the cap protects against pathological configs.
 MAX_PARALLEL_FETCHES = 16
+# Single retry with a short backoff smooths out transient feed-side blips
+# (SEC EDGAR throttles, occasional 5xx from Seeking Alpha, brief connection
+# resets). 2 total attempts adds at most ~0.5s of wall time to the slowest
+# URL while turning the common "one feed got an unlucky tick" failure into
+# a quiet success instead of a Notes/Exceptions line.
+FETCH_MAX_ATTEMPTS = 2
+FETCH_RETRY_BACKOFF_SEC = 0.5
 
 
 def _fetch_entries(url: str, timeout: float) -> list[dict[str, Any]]:
-    resp = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
-    resp.raise_for_status()
-    parsed = feedparser.parse(resp.text)
-    return list(parsed.entries)
+    last_exc: requests.RequestException | None = None
+    for attempt in range(FETCH_MAX_ATTEMPTS):
+        try:
+            resp = requests.get(
+                url, timeout=timeout, headers={"User-Agent": USER_AGENT}
+            )
+            resp.raise_for_status()
+            parsed = feedparser.parse(resp.text)
+            return list(parsed.entries)
+        except requests.RequestException as exc:
+            last_exc = exc
+            if attempt + 1 < FETCH_MAX_ATTEMPTS:
+                time.sleep(FETCH_RETRY_BACKOFF_SEC)
+    assert last_exc is not None  # loop above guarantees this
+    raise last_exc
 
 
 def _fetch_all(

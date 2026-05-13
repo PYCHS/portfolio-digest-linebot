@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
 import requests
 
 from src.dedup import SeenEntry, save_seen
@@ -118,11 +119,16 @@ def test_watchlist_malformed_returns_full_gap(tmp_path):
     assert exc and "malformed" in exc[0]
 
 
-def test_direct_feed_network_error_logged_and_run_does_not_crash(requests_mock, tmp_path):
+def test_direct_feed_network_error_logged_and_run_does_not_crash(
+    monkeypatch, requests_mock, tmp_path
+):
     # Direct ACME feed times out; a separately-empty Google News mock catches
     # both ACME's fallback and BETA's primary call. The point is that the run
     # returns a list (not None — None means watchlist-level failure) and
     # ACME's network error is preserved in the exceptions list.
+    from src.sources import news as news_mod
+    monkeypatch.setattr(news_mod.time, "sleep", lambda _s: None)
+
     requests_mock.get(ACME_RSS_URL, exc=requests.exceptions.ConnectTimeout)
     requests_mock.get(GN_URL, text='<?xml version="1.0"?><rss><channel></channel></rss>')
 
@@ -380,6 +386,54 @@ def test_persist_seen_false_does_not_write_seen_file_and_yields_repeatable_items
     assert any(i.issuer_id == "ACME" for i in second), (
         "ACME item disappeared on second preview — preview is mutating dedup state"
     )
+
+
+def test_fetch_entries_retries_once_on_transient_failure(monkeypatch, requests_mock):
+    """A single transient blip (connection reset, 5xx, etc.) shouldn't surface
+    as an exception line — _fetch_entries retries once before giving up."""
+    from src.sources import news as news_mod
+
+    # Skip the real sleep so the test stays fast.
+    monkeypatch.setattr(news_mod.time, "sleep", lambda _s: None)
+
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<rss version=\"2.0\"><channel>"
+        "<item><title>second try works</title><link>https://x/1</link>"
+        "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>"
+        "</channel></rss>"
+    )
+    # requests_mock takes a list of response specs to give different responses
+    # for successive calls to the same URL.
+    requests_mock.get(
+        "https://example.com/feed.rss",
+        [
+            {"exc": requests.exceptions.ConnectionError},
+            {"text": rss, "status_code": 200},
+        ],
+    )
+
+    entries = news_mod._fetch_entries("https://example.com/feed.rss", timeout=1.0)
+    assert len(entries) == 1
+    assert entries[0]["title"] == "second try works"
+
+
+def test_fetch_entries_propagates_last_error_after_exhausting_retries(
+    monkeypatch, requests_mock
+):
+    """If every attempt fails, the last RequestException must propagate so the
+    caller (_fetch_all) can attribute the failure to the right issuer."""
+    from src.sources import news as news_mod
+
+    monkeypatch.setattr(news_mod.time, "sleep", lambda _s: None)
+
+    requests_mock.get(
+        "https://example.com/feed.rss",
+        exc=requests.exceptions.ConnectTimeout,
+    )
+
+    with pytest.raises(requests.exceptions.ConnectTimeout):
+        news_mod._fetch_entries("https://example.com/feed.rss", timeout=1.0)
 
 
 def test_news_fetch_sends_user_agent_header(requests_mock, tmp_path):
