@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from .models import DigestInput
+
+YIELD_QUANTUM = Decimal("0.01")
 
 
 def render(d: DigestInput) -> str:
@@ -61,8 +63,22 @@ def render(d: DigestInput) -> str:
         for ccy in sorted(s.total_cost):
             lines.append(f"- Total Cost (總成本): {s.total_cost[ccy]:,.2f} {ccy}")
         for ccy in sorted(s.annual_coupon):
+            coupon = s.annual_coupon[ccy]
+            cost = s.total_cost.get(ccy)
+            # Yield is the conventional bond-portfolio metric (coupon as a
+            # percentage of cost basis); show it inline when cost data is
+            # present so the reader doesn't have to do the division. Skip when
+            # cost is missing or zero — printing "0.00% yield" would be
+            # misleading vs. saying nothing.
+            if cost and cost > 0:
+                yield_pct = (coupon / cost * Decimal(100)).quantize(
+                    YIELD_QUANTUM, rounding=ROUND_HALF_UP
+                )
+                suffix = f" ({yield_pct:.2f}% yield / 殖利率)"
+            else:
+                suffix = ""
             lines.append(
-                f"- Est. Annual Coupon (預估年息): {s.annual_coupon[ccy]:,.2f} {ccy}"
+                f"- Est. Annual Coupon (預估年息): {coupon:,.2f} {ccy}{suffix}"
             )
         if s.next_coupon is None:
             lines.append("- Next Coupon (7d) (七日內下個利息): none (無)")

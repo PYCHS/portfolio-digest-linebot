@@ -14,7 +14,7 @@
 
 📌 Portfolio Snapshot (投資組合快照) (Cost-based)
 - Total Cost (總成本): 14,750.00 USD
-- Est. Annual Coupon (預估年息): 760.00 USD
+- Est. Annual Coupon (預估年息): 760.00 USD (5.15% yield / 殖利率)
 - Next Coupon (7d) (七日內下個利息): ACME 2026-05-01 27.50 USD
 
 💰 Cashflow (現金流) (Ledger)

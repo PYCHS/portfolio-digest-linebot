@@ -94,6 +94,55 @@ def test_status_flips_to_alert_when_news_item_is_alert():
     assert "✅ Status (狀態): All clear (一切正常)" not in out
 
 
+def test_est_annual_coupon_omits_yield_when_cost_currency_is_missing():
+    """Yield % is only meaningful when there's a cost basis to divide by.
+    A currency that has annual_coupon but no matching total_cost (e.g., a
+    portfolio of uncosted FCN positions) must not render '0.00% yield' or
+    crash on a div-by-zero — just show the coupon and skip the suffix."""
+    base = _all_populated()
+    snap_no_cost = Snapshot(
+        total_cost={},  # no cost basis at all
+        annual_coupon={"USD": Decimal("760.00")},
+        next_coupon=base.snapshot.next_coupon,
+        uncosted_issuers=["FCN (TSM, BRK)"],
+    )
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=snap_no_cost,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+    )
+    out = render(d)
+    assert "Est. Annual Coupon (預估年息): 760.00 USD" in out
+    assert "yield" not in out
+    assert "殖利率" not in out
+
+
+def test_est_annual_coupon_omits_yield_when_total_cost_is_zero():
+    """Same guard for explicit-zero cost: divide-by-zero would be misleading
+    even if computable (Decimal would raise InvalidOperation)."""
+    base = _all_populated()
+    snap_zero_cost = Snapshot(
+        total_cost={"USD": Decimal("0.00")},
+        annual_coupon={"USD": Decimal("760.00")},
+        next_coupon=base.snapshot.next_coupon,
+        uncosted_issuers=[],
+    )
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=snap_zero_cost,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+    )
+    out = render(d)
+    assert "Est. Annual Coupon (預估年息): 760.00 USD" in out
+    assert "yield" not in out
+
+
 def test_fx_line_appends_as_of_when_rate_is_stale():
     """If the Frankfurter rate is dated to a prior business day (weekend,
     holiday, or pre-CET-noon weekday digest), surface that on the USD/CHF
