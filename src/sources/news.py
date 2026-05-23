@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,8 @@ import yaml
 
 from ..dedup import SeenEntry, is_duplicate, load_seen, normalize, prune_old, save_seen
 from ..models import NewsItem
+
+log = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 10.0
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={q}"
@@ -61,8 +64,11 @@ def _fetch_all(
 
     def _one(url: str) -> tuple[str, list[dict[str, Any]] | Exception]:
         try:
-            return url, _fetch_entries(url, timeout)
+            entries = _fetch_entries(url, timeout)
+            log.debug("news: fetched %d entries from %s", len(entries), url)
+            return url, entries
         except (requests.RequestException, ValueError) as exc:
+            log.debug("news: fetch failed for %s: %s", url, type(exc).__name__)
             return url, exc
 
     results: dict[str, list[dict[str, Any]] | Exception] = {}
@@ -222,6 +228,8 @@ def fetch_news(
                     candidate_entries.append((entry, p["gn_url"]))
 
         chosen = 0
+        n_stale = 0
+        n_dup = 0
         for entry, src_url in candidate_entries:
             if chosen >= max_per_issuer:
                 break
@@ -230,8 +238,10 @@ def fetch_news(
                 continue
             ts = _entry_published(entry)
             if ts is None or ts < cutoff:
+                n_stale += 1
                 continue
             if is_duplicate(title, seen, threshold=threshold):
+                n_dup += 1
                 continue
 
             seen.append(SeenEntry(title_norm=normalize(title), first_seen=now.isoformat()))
@@ -247,6 +257,20 @@ def fetch_news(
                 )
             )
             chosen += 1
+
+        # One summary line per issuer makes "why no news for X today?"
+        # answerable straight from the cron log: distinguishes no-data
+        # (candidates=0) from everything-too-old (stale>0) from
+        # already-seen (dup>0). When chosen==0 the loop examined every
+        # candidate, so the stale/dup tallies are complete.
+        log.info(
+            "news: %s: candidates=%d chosen=%d stale=%d dup=%d",
+            iid,
+            len(candidate_entries),
+            chosen,
+            n_stale,
+            n_dup,
+        )
 
     if persist_seen:
         save_seen(seen_path, seen)

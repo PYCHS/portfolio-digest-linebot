@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -386,6 +387,25 @@ def test_persist_seen_false_does_not_write_seen_file_and_yields_repeatable_items
     assert any(i.issuer_id == "ACME" for i in second), (
         "ACME item disappeared on second preview — preview is mutating dedup state"
     )
+
+
+def test_per_issuer_fetch_summary_is_logged(requests_mock, tmp_path, caplog):
+    """Each enabled issuer emits one INFO summary line (candidates/chosen/
+    stale/dup) so 'why no news for X today?' is answerable from cron logs.
+    Disabled issuers (GAMMA) don't appear."""
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    with caplog.at_level(logging.INFO, logger="src.sources.news"):
+        fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+
+    summaries = [r.getMessage() for r in caplog.records if "candidates=" in r.getMessage()]
+    assert any("news: ACME:" in s for s in summaries)
+    assert any("news: BETA:" in s for s in summaries)
+    assert all("GAMMA" not in s for s in summaries)
+    # ACME has one fresh, unique item, so it should report chosen=1.
+    acme = next(s for s in summaries if "news: ACME:" in s)
+    assert "chosen=1" in acme
 
 
 def test_fetch_entries_retries_once_on_transient_failure(monkeypatch, requests_mock):
