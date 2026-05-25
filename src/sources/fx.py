@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import date as Date, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
@@ -11,23 +12,45 @@ DEFAULT_BASE_URL = "https://api.frankfurter.app"
 DEFAULT_TIMEOUT = 5.0
 RATE_QUANTUM = Decimal("0.0001")
 PCT_QUANTUM = Decimal("0.01")
+# Mirrors news.py: a meaningful UA is good hygiene (some providers 403 the
+# default python-requests UA), and a single short-backoff retry stops a
+# one-off network blip on the *latest* fetch from blanking the whole FX
+# section. Retry covers transient transport errors only — a bad/garbled
+# response is a data problem that won't fix itself on a re-request.
+USER_AGENT = "portfolio-digest-linebot/0.1"
+FETCH_MAX_ATTEMPTS = 2
+FETCH_RETRY_BACKOFF_SEC = 0.5
 
 
 _FETCH_ERRORS = (requests.RequestException, KeyError, ValueError, InvalidOperation)
 
 
 def _fetch(base_url: str, segment: str, timeout: float) -> tuple[Date, Decimal]:
-    resp = requests.get(
-        f"{base_url}/{segment}",
-        params={"from": "USD", "to": "CHF"},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    rate = Decimal(str(data["rates"]["CHF"]))
-    if not rate.is_finite():
-        raise ValueError(f"non-finite rate: {data['rates']['CHF']!r}")
-    return Date.fromisoformat(data["date"]), rate
+    last_exc: requests.RequestException | None = None
+    for attempt in range(FETCH_MAX_ATTEMPTS):
+        try:
+            resp = requests.get(
+                f"{base_url}/{segment}",
+                params={"from": "USD", "to": "CHF"},
+                timeout=timeout,
+                headers={"User-Agent": USER_AGENT},
+            )
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            last_exc = exc
+            if attempt + 1 < FETCH_MAX_ATTEMPTS:
+                time.sleep(FETCH_RETRY_BACKOFF_SEC)
+            continue
+        # Parse outside the retry: KeyError / ValueError / InvalidOperation
+        # here mean the API gave us something unusable, which a retry won't
+        # cure — let them propagate to the caller's _FETCH_ERRORS handler.
+        data = resp.json()
+        rate = Decimal(str(data["rates"]["CHF"]))
+        if not rate.is_finite():
+            raise ValueError(f"non-finite rate: {data['rates']['CHF']!r}")
+        return Date.fromisoformat(data["date"]), rate
+    assert last_exc is not None  # loop above guarantees this
+    raise last_exc
 
 
 def fetch_fx(

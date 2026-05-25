@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import requests
 
+from src.sources import fx as fx_mod
 from src.sources.fx import fetch_fx
 
 LATEST = "https://api.frankfurter.app/latest"
@@ -53,7 +54,8 @@ def test_prior_day_returns_same_date_renders_dod_none(requests_mock):
     assert fx.usd_chf_dod_pct is None
 
 
-def test_prior_day_network_error_preserves_today_rate(requests_mock):
+def test_prior_day_network_error_preserves_today_rate(monkeypatch, requests_mock):
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
     requests_mock.get(PRIOR, exc=requests.exceptions.ConnectTimeout)
     fx, exc = fetch_fx()
@@ -63,7 +65,8 @@ def test_prior_day_network_error_preserves_today_rate(requests_mock):
     assert fx.usd_chf_dod_pct is None
 
 
-def test_today_500_returns_full_gap(requests_mock):
+def test_today_500_returns_full_gap(monkeypatch, requests_mock):
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, status_code=500)
     fx, exc = fetch_fx()
     assert fx is None
@@ -84,7 +87,8 @@ def test_today_missing_rate_key_returns_full_gap(requests_mock):
     assert exc and "fx: latest fetch failed" in exc[0]
 
 
-def test_connection_error_on_today_returns_full_gap(requests_mock):
+def test_connection_error_on_today_returns_full_gap(monkeypatch, requests_mock):
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, exc=requests.exceptions.ConnectionError)
     fx, exc = fetch_fx()
     assert fx is None
@@ -106,3 +110,56 @@ def test_non_finite_rate_returns_full_gap(requests_mock):
     fx, exc = fetch_fx()
     assert fx is None
     assert exc and "ValueError" in exc[0]
+
+
+def test_fetch_sends_user_agent_header(requests_mock):
+    """Frankfurter doesn't 403 the default UA today, but every other HTTP
+    call in the project identifies itself; keep FX consistent so a future
+    UA policy doesn't silently blank the FX section."""
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    fetch_fx()
+    assert requests_mock.request_history
+    for r in requests_mock.request_history:
+        ua = r.headers.get("User-Agent", "")
+        assert ua and not ua.startswith("python-requests"), f"bad UA: {ua!r}"
+
+
+def test_latest_fetch_retries_once_on_transient_failure(monkeypatch, requests_mock):
+    """A single transient blip on the latest-rate call shouldn't blank the FX
+    section — _fetch retries once before giving up."""
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
+    requests_mock.get(
+        LATEST,
+        [
+            {"exc": requests.exceptions.ConnectionError},
+            {"json": {"date": "2026-04-25", "rates": {"CHF": 0.9123}}},
+        ],
+    )
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    fx, exc = fetch_fx()
+    assert exc == []
+    assert fx is not None
+    assert fx.usd_chf == Decimal("0.9123")
+
+
+def test_latest_fetch_persistent_failure_returns_full_gap(monkeypatch, requests_mock):
+    """If every attempt fails, the FX source reports a clean gap (rc handled
+    upstream) rather than crashing."""
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
+    requests_mock.get(LATEST, exc=requests.exceptions.ConnectTimeout)
+    fx, exc = fetch_fx()
+    assert fx is None
+    assert exc and exc[0].startswith("fx: latest fetch failed")
+
+
+def test_data_error_is_not_retried(monkeypatch, requests_mock):
+    """A 200 response with unusable data must not trigger a retry — it won't
+    fix itself, and retrying wastes a request + backoff. Verified by counting
+    how many times the latest endpoint is hit."""
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
+    requests_mock.get(LATEST, json={"date": "2026-04-25"})  # missing "rates"
+    fx, exc = fetch_fx()
+    assert fx is None
+    latest_hits = [r for r in requests_mock.request_history if r.path == "/latest"]
+    assert len(latest_hits) == 1, f"expected no retry on data error, got {len(latest_hits)}"
