@@ -227,12 +227,16 @@ def fetch_news(
                 for entry in (res or []):
                     candidate_entries.append((entry, p["gn_url"]))
 
-        chosen = 0
+        # Gather *every* fresh, non-duplicate candidate and scan each for
+        # alert keywords — not just the first. With max_items_per_issuer=1
+        # the old loop stopped after choosing one item, so a risk headline
+        # ranked below the top one never tripped the alert. Dedup state
+        # (`seen`) is read here but only mutated for items we actually show,
+        # so a candidate we scan-but-don't-display can still surface tomorrow.
+        eligible: list[tuple[dict[str, Any], str, bool]] = []
         n_stale = 0
         n_dup = 0
         for entry, src_url in candidate_entries:
-            if chosen >= max_per_issuer:
-                break
             title = (entry.get("title") or "").strip()
             if not title:
                 continue
@@ -243,10 +247,27 @@ def fetch_news(
             if is_duplicate(title, seen, threshold=threshold):
                 n_dup += 1
                 continue
-
-            seen.append(SeenEntry(title_norm=normalize(title), first_seen=now.isoformat()))
             haystack = title.lower()
             is_alert = any(k in haystack for k in effective_alert_keywords if k)
+            eligible.append((entry, src_url, is_alert))
+
+        # Prefer alert headlines for the (capped) display slots so the headline
+        # that tripped the alert is the one actually shown. Stable sort keeps
+        # feed order within each group, so the no-alert case is unchanged: the
+        # first-by-feed-order item is still what's displayed.
+        eligible.sort(key=lambda t: not t[2])
+        n_alerts = sum(1 for *_, a in eligible if a)
+
+        shown = 0
+        for entry, src_url, is_alert in eligible:
+            if shown >= max_per_issuer:
+                break
+            title = (entry.get("title") or "").strip()
+            # Guard against displaying two near-identical headlines when the
+            # cap is > 1 (the first appended makes the second look duplicate).
+            if is_duplicate(title, seen, threshold=threshold):
+                continue
+            seen.append(SeenEntry(title_norm=normalize(title), first_seen=now.isoformat()))
             items.append(
                 NewsItem(
                     issuer_id=iid,
@@ -256,18 +277,20 @@ def fetch_news(
                     link=(entry.get("link") or None),
                 )
             )
-            chosen += 1
+            shown += 1
 
         # One summary line per issuer makes "why no news for X today?"
         # answerable straight from the cron log: distinguishes no-data
-        # (candidates=0) from everything-too-old (stale>0) from
-        # already-seen (dup>0). When chosen==0 the loop examined every
-        # candidate, so the stale/dup tallies are complete.
+        # (candidates=0) from everything-too-old (stale>0) from already-seen
+        # (dup>0), and surfaces how many eligible headlines tripped a keyword
+        # (alerts>0) even when only one is shown.
         log.info(
-            "news: %s: candidates=%d chosen=%d stale=%d dup=%d",
+            "news: %s: candidates=%d eligible=%d shown=%d alerts=%d stale=%d dup=%d",
             iid,
             len(candidate_entries),
-            chosen,
+            len(eligible),
+            shown,
+            n_alerts,
             n_stale,
             n_dup,
         )

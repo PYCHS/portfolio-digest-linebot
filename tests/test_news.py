@@ -403,9 +403,65 @@ def test_per_issuer_fetch_summary_is_logged(requests_mock, tmp_path, caplog):
     assert any("news: ACME:" in s for s in summaries)
     assert any("news: BETA:" in s for s in summaries)
     assert all("GAMMA" not in s for s in summaries)
-    # ACME has one fresh, unique item, so it should report chosen=1.
+    # ACME has one fresh, unique item, so it should report shown=1.
     acme = next(s for s in summaries if "news: ACME:" in s)
-    assert "chosen=1" in acme
+    assert "shown=1" in acme
+
+
+def test_alert_keyword_in_non_top_headline_still_fires_and_is_shown(
+    requests_mock, tmp_path
+):
+    """Regression: with max_items_per_issuer=1 the old code only checked the
+    first fresh item, so a risk headline ranked below it never tripped the
+    alert. Now every eligible headline is scanned, and the alert one is
+    promoted into the single display slot."""
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<rss version=\"2.0\"><channel>"
+        # Benign item first (most recent by feed order)...
+        "<item><title>ACME opens new distribution center</title>"
+        "<link>https://acme.com/dc</link>"
+        "<pubDate>Sat, 25 Apr 2026 11:00:00 +0000</pubDate></item>"
+        # ...risk item second — must still trip the alert and be shown.
+        "<item><title>ACME debt downgrade by S&amp;P</title>"
+        "<link>https://acme.com/downgrade</link>"
+        "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>"
+        "</channel></rss>"
+    )
+    requests_mock.get(ACME_RSS_URL, text=rss)
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    items, _ = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    acme = [i for i in items if i.issuer_id == "ACME"]
+    # Cap respected: still only one ACME item shown...
+    assert len(acme) == 1
+    # ...and it's the downgrade headline, flagged as an alert.
+    assert acme[0].is_alert is True
+    assert "downgrade" in acme[0].summary.lower()
+
+
+def test_no_alert_keyword_shows_first_by_feed_order(requests_mock, tmp_path):
+    """No risk keyword anywhere → behavior unchanged: the first-by-feed-order
+    fresh item is shown, not flagged."""
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<rss version=\"2.0\"><channel>"
+        "<item><title>ACME opens new distribution center</title>"
+        "<link>https://acme.com/dc</link>"
+        "<pubDate>Sat, 25 Apr 2026 11:00:00 +0000</pubDate></item>"
+        "<item><title>ACME hires new head of marketing</title>"
+        "<link>https://acme.com/cmo</link>"
+        "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>"
+        "</channel></rss>"
+    )
+    requests_mock.get(ACME_RSS_URL, text=rss)
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    items, _ = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+    acme = [i for i in items if i.issuer_id == "ACME"]
+    assert len(acme) == 1
+    assert acme[0].is_alert is False
+    assert acme[0].summary == "ACME opens new distribution center"
 
 
 def test_fetch_entries_retries_once_on_transient_failure(monkeypatch, requests_mock):
