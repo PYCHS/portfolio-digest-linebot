@@ -233,7 +233,7 @@ def fetch_news(
         # ranked below the top one never tripped the alert. Dedup state
         # (`seen`) is read here but only mutated for items we actually show,
         # so a candidate we scan-but-don't-display can still surface tomorrow.
-        eligible: list[tuple[dict[str, Any], str, bool]] = []
+        eligible: list[tuple[dict[str, Any], str, bool, str | None]] = []
         n_stale = 0
         n_dup = 0
         for entry, src_url in candidate_entries:
@@ -248,18 +248,26 @@ def fetch_news(
                 n_dup += 1
                 continue
             haystack = title.lower()
-            is_alert = any(k in haystack for k in effective_alert_keywords if k)
-            eligible.append((entry, src_url, is_alert))
+            # Track the *first* matching keyword so we can log it on display.
+            # Without this, a flipped Status only tells the reader "something
+            # tripped"; with it, broad / noisy keywords (e.g. "debt" matching
+            # "less net debt") are immediately identifiable in the cron log
+            # so the watchlist can be tuned by inspection.
+            matched_kw: str | None = next(
+                (k for k in effective_alert_keywords if k and k in haystack),
+                None,
+            )
+            eligible.append((entry, src_url, matched_kw is not None, matched_kw))
 
         # Prefer alert headlines for the (capped) display slots so the headline
         # that tripped the alert is the one actually shown. Stable sort keeps
         # feed order within each group, so the no-alert case is unchanged: the
         # first-by-feed-order item is still what's displayed.
         eligible.sort(key=lambda t: not t[2])
-        n_alerts = sum(1 for *_, a in eligible if a)
+        n_alerts = sum(1 for t in eligible if t[2])
 
         shown = 0
-        for entry, src_url, is_alert in eligible:
+        for entry, src_url, is_alert, matched_kw in eligible:
             if shown >= max_per_issuer:
                 break
             title = (entry.get("title") or "").strip()
@@ -277,6 +285,13 @@ def fetch_news(
                     link=(entry.get("link") or None),
                 )
             )
+            if is_alert and matched_kw:
+                log.info(
+                    "news: %s: ALERT shown — %r (keyword: %s)",
+                    iid,
+                    title[:120],
+                    matched_kw,
+                )
             shown += 1
 
         # One summary line per issuer makes "why no news for X today?"

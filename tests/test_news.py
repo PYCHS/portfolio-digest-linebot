@@ -408,6 +408,26 @@ def test_per_issuer_fetch_summary_is_logged(requests_mock, tmp_path, caplog):
     assert "shown=1" in acme
 
 
+def test_displayed_alert_logs_matched_keyword(requests_mock, tmp_path, caplog):
+    """When an alert headline is displayed, the matched keyword is logged so
+    noisy/over-broad keywords (e.g. 'debt' tripping on 'less net debt') are
+    identifiable from cron logs without re-running the digest manually."""
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_alert.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    with caplog.at_level(logging.INFO, logger="src.sources.news"):
+        fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+
+    alert_lines = [
+        r.getMessage() for r in caplog.records if "ALERT shown" in r.getMessage()
+    ]
+    assert len(alert_lines) >= 1, "no ALERT log line emitted for the downgrade item"
+    acme_line = next(s for s in alert_lines if "news: ACME:" in s)
+    assert "keyword: downgrade" in acme_line
+    # The headline text is in the line (truncated to 120 chars), repr-quoted.
+    assert "downgrade" in acme_line.lower()
+
+
 def test_alert_keyword_in_non_top_headline_still_fires_and_is_shown(
     requests_mock, tmp_path
 ):
