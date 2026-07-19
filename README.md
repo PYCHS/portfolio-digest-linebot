@@ -1,17 +1,31 @@
 # Portfolio Digest LINE Bot
 
-A single-shot CLI that builds a daily Portfolio Ops Digest and pushes it to a LINE group.
+[![CI](https://github.com/PYCHS/portfolio-digest-linebot/actions/workflows/ci.yml/badge.svg)](https://github.com/PYCHS/portfolio-digest-linebot/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-108%20passing-brightgreen)
+
+A production-oriented Python CLI that aggregates portfolio positions, cashflows, FX rates, and market news into a daily operations digest, then delivers it to a LINE group. It supports safe local previews, failure isolation across data sources, deduplication, automated testing, and scheduled delivery.
 
 > **Public repo notice.** This repository is public. Real credentials and real portfolio data must never be committed. All sensitive files live under `private/` and are gitignored. Only `*.example.*` samples are committed.
 
 ## Status
 
-Milestone **M0 — Scaffold** (current). Collectors, formatter, and LINE client land in subsequent milestones (see [Milestone plan](#milestone-plan)).
+**M0–M8 complete.** The end-to-end digest pipeline, LINE delivery, automated tests, and scheduling workflows are implemented. **M9 — Projected Cashflow** is planned.
+
+## Features
+
+- Aggregates portfolio positions, actual cashflows, FX rates, and issuer news
+- Detects alert keywords and prevents duplicate news notifications
+- Isolates collector failures so one unavailable source does not stop the digest
+- Provides a safe `--dry-run` mode before sending anything to LINE
+- Supports scheduled delivery through GitHub Actions, cron, or Windows Task Scheduler
+- Protects credentials and portfolio data through environment variables, GitHub secrets, and gitignored private files
+- Includes **108 automated tests** with all external network calls mocked
 
 ## Layout
 
 ```
-src/                       # application package (filled in M1+)
+src/                       # application package and data collectors
 tests/                     # pytest suite
 config/
   watchlist.example.yaml   # safe sample (committed)
@@ -91,7 +105,7 @@ python -m src.main --push
 pytest
 ```
 
-Network calls in tests are mocked (`requests-mock`). No live RSS / FX / LINE traffic.
+**Current result: 108 tests passing.** Network calls are mocked (`requests-mock`), so the suite never contacts live RSS, FX, or LINE services.
 
 ## Scheduling
 
@@ -165,13 +179,13 @@ The script prefers `.venv\Scripts\python.exe` if present, otherwise `python` on 
 
 | # | Scope |
 |---|---|
-| M0 | Scaffold, gitignore, env template, CI running empty pytest |
-| M1 | Models + formatter + snapshot test against `template.txt` |
-| M2 | Ledger source (Today / MTD / Bal per currency) |
-| M3 | FX source (Frankfurter, USD/CHF + reciprocal + DoD%) |
-| M4 | Positions source (Total Cost, Est. Annual Coupon, Next Coupon 7d) |
-| M5 | News source + dedup + alert keywords |
-| M6 | Orchestrator, partial-failure isolation, `--dry-run`, structured logging |
-| M7 | LINE client + secret-hygiene test |
+| M0 | Scaffold, gitignore, env template, CI running empty pytest ✅ |
+| M1 | Models + formatter + snapshot test against `template.txt` ✅ |
+| M2 | Ledger source (Today / MTD / Bal per currency) ✅ |
+| M3 | FX source (Frankfurter, USD/CHF + reciprocal + DoD%) ✅ |
+| M4 | Positions source (Total Cost, Est. Annual Coupon, Next Coupon 7d) ✅ |
+| M5 | News source + dedup + alert keywords ✅ |
+| M6 | Orchestrator, partial-failure isolation, `--dry-run`, structured logging ✅ |
+| M7 | LINE client + secret-hygiene test ✅ |
 | M8 | Scheduling (GitHub Actions / cron / Task Scheduler) ✅ |
 | M9 | Projected Cashflow section computed from positions schedule (separate from ledger actuals) — planned |
