@@ -67,7 +67,6 @@ cp data/ledger.example.csv         private/ledger.csv
 | Variable | Purpose |
 |---|---|
 | `LINE_CHANNEL_ACCESS_TOKEN` | Long-lived channel access token (Messaging API) |
-| `LINE_CHANNEL_SECRET` | Channel secret |
 | `LINE_GROUP_ID` | Target LINE group ID |
 | `LOG_LEVEL` | `DEBUG`/`INFO`/`WARNING`/`ERROR` (default `INFO`) |
 | `TIMEZONE` | Always `Asia/Taipei` for this bot |
@@ -77,8 +76,7 @@ cp data/ledger.example.csv         private/ledger.csv
 
 1. **Create a Messaging API channel.** Go to <https://developers.line.biz/console/>, create a Provider, then add a Messaging API channel under it.
 2. **Channel access token (long-lived).** In the channel → *Messaging API* tab → *Channel access token (long-lived)* → **Issue**. Copy into `LINE_CHANNEL_ACCESS_TOKEN`.
-3. **Channel secret.** *Basic settings* tab → *Channel secret*. Copy into `LINE_CHANNEL_SECRET`.
-4. **Group ID.** Group IDs are not in the console; you must capture one from a webhook event:
+3. **Group ID.** Group IDs are not in the console; you must capture one from a webhook event:
    - Add the bot account as a friend, then invite it to the target LINE group.
    - Set a temporary webhook URL (e.g. an ngrok tunnel pointing to a small logging endpoint) in the channel's Messaging API settings, and enable *Use webhook*.
    - Have a member send any message in the group. Your endpoint receives a JSON event whose `events[0].source.groupId` is the value you want.
