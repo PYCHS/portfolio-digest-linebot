@@ -199,6 +199,17 @@ def test_push_and_dry_run_are_mutually_exclusive(capsys):
     assert "not allowed with" in err.lower()
 
 
+def test_invalid_timezone_returns_rc2_without_traceback(monkeypatch, capsys):
+    monkeypatch.setenv("TIMEZONE", "Not/A_Real_Timezone")
+
+    rc = main(["--dry-run"])
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "invalid TIMEZONE" in err
+    assert "Not/A_Real_Timezone" in err
+
+
 def test_dry_run_does_not_write_news_seen_file(
     tmp_path, monkeypatch, requests_mock, capsys
 ):

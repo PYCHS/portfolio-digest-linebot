@@ -7,7 +7,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .formatter import render
 from .line_client import push_message
@@ -113,7 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     tz_name = os.environ.get("TIMEZONE", DEFAULT_TZ)
-    now = _now_in_tz(tz_name)
+    try:
+        now = _now_in_tz(tz_name)
+    except ZoneInfoNotFoundError:
+        sys.stderr.write(f"error: invalid TIMEZONE: {tz_name!r}\n")
+        return 2
 
     digest = build_digest(
         now=now,
