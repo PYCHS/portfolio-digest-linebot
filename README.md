@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/PYCHS/portfolio-digest-linebot/actions/workflows/ci.yml/badge.svg)](https://github.com/PYCHS/portfolio-digest-linebot/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-108%20passing-brightgreen)
 
 A production-oriented Python CLI that aggregates portfolio positions, cashflows, FX rates, and market news into a daily operations digest, then delivers it to a LINE group. It supports safe local previews, failure isolation across data sources, deduplication, automated testing, and scheduled delivery.
 
@@ -20,7 +19,7 @@ A production-oriented Python CLI that aggregates portfolio positions, cashflows,
 - Provides a safe `--dry-run` mode before sending anything to LINE
 - Supports scheduled delivery through GitHub Actions, cron, or Windows Task Scheduler
 - Protects credentials and portfolio data through environment variables, GitHub secrets, and gitignored private files
-- Includes **108 automated tests** with all external network calls mocked
+- Includes a comprehensive automated test suite with all external network calls mocked
 
 ## Layout
 
@@ -103,7 +102,7 @@ python -m src.main --push
 pytest
 ```
 
-**Current result: 108 tests passing.** Network calls are mocked (`requests-mock`), so the suite never contacts live RSS, FX, or LINE services.
+Network calls are mocked (`requests-mock`), so the suite never contacts live RSS, FX, or LINE services. The CI workflow runs the full suite on every push and pull request.
 
 ## Scheduling
 
