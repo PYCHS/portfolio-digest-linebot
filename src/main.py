@@ -106,7 +106,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    log_level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, None)
+    if not isinstance(log_level, int):
+        sys.stderr.write(f"error: invalid LOG_LEVEL: {log_level_name!r}\n")
+        return 2
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",

@@ -210,6 +210,17 @@ def test_invalid_timezone_returns_rc2_without_traceback(monkeypatch, capsys):
     assert "Not/A_Real_Timezone" in err
 
 
+def test_invalid_log_level_returns_rc2_without_traceback(monkeypatch, capsys):
+    monkeypatch.setenv("LOG_LEVEL", "verbose")
+
+    rc = main(["--dry-run"])
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "invalid LOG_LEVEL" in err
+    assert "VERBOSE" in err
+
+
 def test_dry_run_does_not_write_news_seen_file(
     tmp_path, monkeypatch, requests_mock, capsys
 ):
