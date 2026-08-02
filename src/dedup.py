@@ -43,7 +43,12 @@ def load_seen(path: Path) -> list[SeenEntry]:
 def save_seen(path: Path, entries: list[SeenEntry]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"entries": [asdict(e) for e in entries]}
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temp_path = path.with_name(f".{path.name}.tmp")
+    try:
+        temp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        temp_path.replace(path)
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def prune_old(entries: list[SeenEntry], now: datetime, days: int) -> list[SeenEntry]:

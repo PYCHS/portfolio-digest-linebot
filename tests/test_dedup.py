@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
 
 from src.dedup import (
     SeenEntry,
@@ -61,6 +64,24 @@ def test_save_and_load_round_trip(tmp_path):
     save_seen(p, entries)
     reloaded = load_seen(p)
     assert reloaded == entries
+
+
+def test_save_failure_preserves_existing_seen_file(tmp_path, monkeypatch):
+    p = tmp_path / "seen.json"
+    original = '{"entries": [{"title_norm": "old", "first_seen": "2026-04-25T12:00:00+00:00"}]}'
+    p.write_text(original, encoding="utf-8")
+
+    def fail_replace(_self: Path, _target: Path) -> None:
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    entries = [SeenEntry(title_norm="new", first_seen=NOW.isoformat())]
+
+    with pytest.raises(OSError, match="simulated replace failure"):
+        save_seen(p, entries)
+
+    assert p.read_text(encoding="utf-8") == original
+    assert not (tmp_path / ".seen.json.tmp").exists()
 
 
 def test_load_seen_returns_empty_for_missing_file(tmp_path):
