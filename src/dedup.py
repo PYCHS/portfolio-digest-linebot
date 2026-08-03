@@ -30,6 +30,8 @@ def load_seen(path: Path) -> list[SeenEntry]:
         return []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return []
         raw = data.get("entries", [])
         out: list[SeenEntry] = []
         for e in raw:
