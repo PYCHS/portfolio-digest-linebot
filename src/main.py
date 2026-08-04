@@ -11,11 +11,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .formatter import render
 from .line_client import push_message
+from .llm import DEFAULT_MODEL, analyze_news, fallback_greeting, generate_greeting
 from .models import DigestInput
 from .sources.fx import fetch_fx
 from .sources.ledger import load_ledger
 from .sources.news import fetch_news
 from .sources.positions import load_positions
+from .sources.schedule import project_cashflows
 
 DEFAULT_TZ = "Asia/Taipei"
 log = logging.getLogger(__name__)
@@ -34,6 +36,11 @@ def build_digest(
     ledger_path: Path,
     positions_path: Path,
     persist_seen: bool = True,
+    recurring_path: Path | None = None,
+    projection_days: int = 60,
+    llm_api_key: str | None = None,
+    llm_model: str = DEFAULT_MODEL,
+    llm_context: str | None = None,
 ) -> DigestInput:
     """Run all four collectors in isolation and assemble a DigestInput.
 
@@ -47,6 +54,21 @@ def build_digest(
     today = now.date()
     exceptions: list[str] = []
 
+    # M11 — morning greeting. Always present: LLM-generated when a key is
+    # set, deterministic offline rotation otherwise.
+    if llm_api_key:
+        try:
+            greeting, greet_exc = generate_greeting(
+                today, api_key=llm_api_key, model=llm_model
+            )
+            exceptions.extend(greet_exc)
+        except Exception as e:
+            log.exception("greeting raised")
+            greeting = fallback_greeting(today)
+            exceptions.append(f"llm greeting: unexpected {type(e).__name__}")
+    else:
+        greeting = fallback_greeting(today)
+
     try:
         news, news_exc = fetch_news(
             watchlist_path, seen_path, now=now, persist_seen=persist_seen
@@ -56,6 +78,22 @@ def build_digest(
         log.exception("news collector raised")
         news = None
         exceptions.append(f"news: unexpected {type(e).__name__}")
+
+    # M10 — LLM impact analysis. Strictly additive: no key or any failure
+    # leaves `news` exactly as fetched.
+    news_overview: str | None = None
+    if news and llm_api_key:
+        try:
+            news, news_overview, llm_exc = analyze_news(
+                news,
+                api_key=llm_api_key,
+                model=llm_model,
+                context=llm_context,
+            )
+            exceptions.extend(llm_exc)
+        except Exception as e:
+            log.exception("llm analysis raised")
+            exceptions.append(f"llm: unexpected {type(e).__name__}")
 
     try:
         fx, fx_exc = fetch_fx()
@@ -81,6 +119,21 @@ def build_digest(
         snap = None
         exceptions.append(f"positions: unexpected {type(e).__name__}")
 
+    # M9 — projected cashflow calendar (bond coupons from positions.csv,
+    # everything else from recurring.csv).
+    try:
+        projected, proj_exc = project_cashflows(
+            positions_path,
+            recurring_path if recurring_path is not None else Path("private/recurring.csv"),
+            today=today,
+            horizon_days=projection_days,
+        )
+        exceptions.extend(proj_exc)
+    except Exception as e:
+        log.exception("schedule collector raised")
+        projected = None
+        exceptions.append(f"schedule: unexpected {type(e).__name__}")
+
     return DigestInput(
         date_str=today.isoformat(),
         news=news,
@@ -88,6 +141,9 @@ def build_digest(
         cashflow=cf,
         snapshot=snap,
         exceptions=exceptions,
+        projected=projected,
+        news_overview=news_overview,
+        greeting=greeting,
     )
 
 
@@ -123,6 +179,22 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"error: invalid TIMEZONE: {tz_name!r}\n")
         return 2
 
+    try:
+        projection_days = int(os.environ.get("PROJECTION_DAYS", "60"))
+    except ValueError:
+        sys.stderr.write("error: invalid PROJECTION_DAYS\n")
+        return 2
+
+    llm_context: str | None = None
+    context_path = Path(
+        os.environ.get("LLM_CONTEXT_PATH", "private/llm_context.txt")
+    )
+    if context_path.exists():
+        try:
+            llm_context = context_path.read_text(encoding="utf-8").strip() or None
+        except OSError:
+            llm_context = None
+
     digest = build_digest(
         now=now,
         watchlist_path=Path(os.environ.get("WATCHLIST_PATH", "private/watchlist.yaml")),
@@ -132,6 +204,11 @@ def main(argv: list[str] | None = None) -> int:
         # Only --push commits dedup state. Previews (default and --dry-run)
         # leave seen.json untouched so re-running yields the same items.
         persist_seen=args.push,
+        recurring_path=Path(os.environ.get("RECURRING_PATH", "private/recurring.csv")),
+        projection_days=projection_days,
+        llm_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
+        llm_model=os.environ.get("LLM_MODEL", DEFAULT_MODEL),
+        llm_context=llm_context,
     )
     message = render(digest)
 

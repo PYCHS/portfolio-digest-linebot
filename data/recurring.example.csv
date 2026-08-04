@@ -1,0 +1,6 @@
+label,currency,amount,schedule,start_date,end_date,category,estimate
+Sample FCN monthly coupon,USD,1000.00,monthly:8,2026-06-08,2026-10-08,coupon,0
+Sample FCN redemption,USD,100000.00,once:2026-10-08,,,principal,1
+Sample repo interest,CHF,-4000.00,yearly:3/4;6/4;9/4;12/4,2026-06-04,,interest,1
+Sample bank loan interest,CHF,-800.00,monthly:1,,,interest,1
+Sample insurance annual payout,USD,50000.00,yearly:12/1,,,insurance,1

@@ -5,10 +5,12 @@ from pathlib import Path
 from src.formatter import render
 from src.models import (
     Cashflow,
+    CashflowEvent,
     Coupon,
     DigestInput,
     FxResult,
     NewsItem,
+    Projection,
     Snapshot,
 )
 
@@ -54,6 +56,27 @@ def _all_populated() -> DigestInput:
             bal={"USD": Decimal("1065.00"), "CHF": Decimal("197.50")},
         ),
         exceptions=[],
+        projected=Projection(
+            events=[
+                CashflowEvent(
+                    date=date(2026, 5, 1),
+                    label="ACME 配息",
+                    amount=Decimal("27.50"),
+                    currency="USD",
+                    category="coupon",
+                ),
+                CashflowEvent(
+                    date=date(2026, 6, 4),
+                    label="Repo interest",
+                    amount=Decimal("-40.00"),
+                    currency="CHF",
+                    category="interest",
+                    is_estimate=True,
+                ),
+            ],
+            horizon_days=60,
+            net={"USD": Decimal("27.50"), "CHF": Decimal("-40.00")},
+        ),
     )
 
 
@@ -236,3 +259,29 @@ def test_next_coupon_renders_non_usd_currency():
         "- Next Coupon (7d) (七日內下個利息): Issuer X 2026-05-01 100.00 CHF"
         in out
     )
+
+
+def test_greeting_renders_directly_under_title():
+    base = _all_populated()
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=base.snapshot,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+        projected=base.projected,
+        greeting="☀️ 早安！今天星期六 🧡\n加油加油 💪\n😄 今日笑話：冷冷的",
+    )
+    out = render(d)
+    lines = out.splitlines()
+    assert lines[0].startswith("【Daily Investment Digest")
+    assert lines[2] == "☀️ 早安！今天星期六 🧡"
+    assert lines[4] == "😄 今日笑話：冷冷的"
+    assert lines[5] == ""
+    assert "Status (狀態)" in lines[6]
+
+
+def test_no_greeting_keeps_legacy_layout():
+    out = render(_all_populated())
+    assert "早安" not in out

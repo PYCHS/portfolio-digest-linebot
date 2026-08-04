@@ -14,6 +14,10 @@ def render(d: DigestInput) -> str:
     )
     lines.append("")
 
+    if d.greeting:
+        lines.extend(d.greeting.splitlines())
+        lines.append("")
+
     is_alert = bool(d.news) and any(n.is_alert for n in d.news)
     lines.append(
         "⚠️ Status (狀態): Alert (警報)"
@@ -29,9 +33,18 @@ def render(d: DigestInput) -> str:
         lines.append("- (no items / 無)")
     else:
         for n in d.news:
-            lines.append(f"- {n.issuer_id}: {n.summary} ({n.source})")
+            if n.summary_zh:
+                # LLM-enriched rendering: Chinese summary + portfolio impact.
+                head = f"- 【{n.impact or '中性'}】{n.issuer_id}: {n.summary_zh}"
+                if n.impact_reason:
+                    head += f" — {n.impact_reason}"
+                lines.append(f"{head} ({n.source})")
+            else:
+                lines.append(f"- {n.issuer_id}: {n.summary} ({n.source})")
             if n.link:
                 lines.append(f"  {n.link}")
+        if d.news_overview:
+            lines.append(f"- 整體評估 (Overall): {d.news_overview}")
     lines.append("")
 
     lines.append("\U0001f4b1 FX (匯率)")
@@ -92,6 +105,34 @@ def render(d: DigestInput) -> str:
             lines.append(f"- {issuer}: Cost unavailable (成本不明)")
     lines.append("")
 
+    lines.append("\U0001f4c5 Projected Cashflow (預估現金流)")
+    if d.projected is None:
+        lines.append("- (unavailable / 無資料)")
+    else:
+        p = d.projected
+        if not p.events:
+            lines.append(f"- (next {p.horizon_days}d: none / 無)")
+        else:
+            has_coupon_inflow = False
+            for e in p.events:
+                mark = "💸" if e.category == "interest" else ""
+                est = " (預估)" if e.is_estimate else ""
+                lines.append(
+                    f"- {e.date.isoformat()} {e.amount:+,.2f} {e.currency}"
+                    f" {mark}{e.label}{est}"
+                )
+                if e.category == "coupon" and e.amount > 0:
+                    has_coupon_inflow = True
+            net_parts = [
+                f"{p.net[ccy]:+,.2f} {ccy}" for ccy in sorted(p.net)
+            ]
+            lines.append(
+                f"- Net ({p.horizon_days}d 淨額): {' | '.join(net_parts)}"
+            )
+            if has_coupon_inflow:
+                lines.append("- 註: 債券配息通常於配息日後約一週入到銀行帳戶")
+    lines.append("")
+
     lines.append("\U0001f4b0 Cashflow (現金流) (Ledger)")
     if d.cashflow is None:
         lines.append("- (unavailable / 無資料)")
@@ -124,6 +165,8 @@ def render(d: DigestInput) -> str:
         gaps.append("Ledger")
     if d.snapshot is None:
         gaps.append("Positions")
+    if d.projected is None:
+        gaps.append("Projection")
 
     if gaps or d.exceptions:
         lines.append("\U0001f9fe Notes (備註)")

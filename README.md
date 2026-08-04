@@ -9,11 +9,14 @@ A production-oriented Python CLI that aggregates portfolio positions, cashflows,
 
 ## Status
 
-**M0–M8 complete.** The end-to-end digest pipeline, LINE delivery, automated tests, and scheduling workflows are implemented. **M9 — Projected Cashflow** is planned.
+**M0–M10 complete.** The end-to-end digest pipeline, LINE delivery, automated tests, scheduling, **M9 — Projected Cashflow** (coupon/interest calendar from `positions.csv` + `recurring.csv`), **M10 — LLM news-impact analysis** (Traditional-Chinese per-headline impact via the Anthropic API, graceful fallback without a key), and **M11 — daily morning greeting** (LLM-generated 早安 + encouragement + joke, offline rotation fallback) are implemented.
 
 ## Features
 
 - Aggregates portfolio positions, actual cashflows, FX rates, and issuer news
+- Projects upcoming cashflows (bond coupons, FCN coupons, loan/repo interest) onto a dated calendar with per-currency nets
+- Analyzes each headline with an LLM from the portfolio's point of view (bondholder / FCN-holder), rendered in Traditional Chinese; falls back to plain headlines when no API key is set
+- Opens every digest with a warm Traditional-Chinese morning greeting, encouragement, and a daily joke (LLM-generated; deterministic offline rotation without a key)
 - Detects alert keywords and prevents duplicate news notifications
 - Isolates collector failures so one unavailable source does not stop the digest
 - Provides a safe `--dry-run` mode before sending anything to LINE
@@ -58,6 +61,8 @@ cp data/ledger.example.csv         private/ledger.csv
 | `private/watchlist.yaml` | News-source watchlist | yes |
 | `private/positions.csv` | Holdings + coupon schedule (used by the Snapshot section) | yes |
 | `private/ledger.csv` | **Actual** cash movements (deposits, coupons received, fees) | **optional** — missing file renders the Cashflow section as zeros |
+| `private/recurring.csv` | Scheduled cashflows the positions schema can't express: FCN monthly coupons, loan/repo interest, insurance payouts (see `data/recurring.example.csv`) | **optional** — projection then uses bond coupons only |
+| `private/llm_context.txt` | One-paragraph portfolio description injected into the LLM prompt | **optional** — a generic default is used |
 
 `ledger.csv` and `positions.csv` are deliberately distinct: ledger captures actuals, positions captures holdings and the *expected* coupon schedule. A future milestone (M9) will add a separate Projected Cashflow section computed from the positions schedule — those projections will not be merged into the ledger and will be clearly labeled as expected.
 
@@ -70,6 +75,11 @@ cp data/ledger.example.csv         private/ledger.csv
 | `LOG_LEVEL` | `DEBUG`/`INFO`/`WARNING`/`ERROR` (default `INFO`) |
 | `TIMEZONE` | Always `Asia/Taipei` for this bot |
 | `WATCHLIST_PATH` / `LEDGER_PATH` / `POSITIONS_PATH` / `NEWS_SEEN_PATH` | Override default file locations |
+| `RECURRING_PATH` | Recurring-cashflow CSV (default `private/recurring.csv`) |
+| `PROJECTION_DAYS` | Projected-cashflow horizon in days (default `60`) |
+| `ANTHROPIC_API_KEY` | Enables M10 LLM news analysis; unset = plain headlines |
+| `LLM_MODEL` | Anthropic model id (default `claude-haiku-4-5`) |
+| `LLM_CONTEXT_PATH` | Portfolio-context text file (default `private/llm_context.txt`) |
 
 ## Obtaining LINE credentials
 
@@ -118,6 +128,9 @@ Configure repo secrets under *Settings → Secrets and variables → Actions*:
 |---|---|
 | `LINE_CHANNEL_ACCESS_TOKEN` | LINE Messaging API token |
 | `LINE_GROUP_ID` | Target LINE group ID |
+| `ANTHROPIC_API_KEY` | (optional) enables LLM news analysis |
+| `RECURRING_CSV_B64` | (optional) base64 of `private/recurring.csv` |
+| `LLM_CONTEXT_TXT_B64` | (optional) base64 of `private/llm_context.txt` |
 | `WATCHLIST_YAML_B64` | base64 of `private/watchlist.yaml` |
 | `POSITIONS_CSV_B64` | base64 of `private/positions.csv` |
 | `LEDGER_CSV_B64` | base64 of `private/ledger.csv` — **optional**; omit to render Cashflow as zeros |

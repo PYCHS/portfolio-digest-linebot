@@ -1,11 +1,16 @@
 【Daily Investment Digest (每日投資摘要)】{YYYY-MM-DD} (Asia/Taipei)
 
+☀️ 早安問候（LLM 生成；無 key 時使用內建輪替句）
+{一句勉勵的話 🧡}
+😄 今日笑話：{簡短笑話}
+
 ✅ Status (狀態): All clear (一切正常)
 （若偵測重大事件→ ⚠️ Status (狀態): Alert (警報)）
 
 📰 News (新聞) (0–1 per issuer)
-- {TICKER/Issuer}: {一句重點} ({source})
-- ...
+- 【利多/利空/中性/無影響】{TICKER/Issuer}: {中文一句摘要} — {對我們的影響一句} ({source})
+（無 LLM key 時退回: - {TICKER/Issuer}: {headline} ({source})）
+- 整體評估 (Overall): {中文一句總結}
 
 💱 FX (匯率)
 - USD/CHF: {r_usd_chf} (Δ {pct}% DoD)
@@ -16,11 +21,16 @@
 - Est. Annual Coupon (預估年息): {amount} USD ({pct}% yield / 殖利率)
 - Next Coupon (7d) (七日內下個利息): {issuer} {date} {amount} USD
 
+📅 Projected Cashflow (預估現金流)
+- {YYYY-MM-DD} {+/-amount} {CCY} {💸如為借款利息}{label}{ (預估)如為估計值}
+- Net ({N}d 淨額): {+/-amount} USD | {+/-amount} CHF
+- 註: 債券配息通常於配息日後約一週入到銀行帳戶
+
 💰 Cashflow (現金流) (Ledger)
 - Today (今日): {+/-amount} USD | {+/-amount} CHF
 - MTD (本月累計): {+/-amount} USD | {+/-amount} CHF
 - Bal (餘額): USD {amount} | CHF {amount}
 
 🧾 Notes (備註)
-- Data gaps (資料缺漏): {News/FX/Ledger/Positions} unavailable
+- Data gaps (資料缺漏): {News/FX/Ledger/Positions/Projection} unavailable
 - Exceptions (異常): {short error code / reason}

@@ -12,6 +12,11 @@ class NewsItem:
     source: str
     is_alert: bool = False
     link: str | None = None
+    # LLM enrichment (M10). None when analysis is unavailable — the
+    # formatter then falls back to the plain headline rendering.
+    summary_zh: str | None = None
+    impact: str | None = None  # 利多 / 利空 / 中性 / 無影響
+    impact_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +47,31 @@ class Coupon:
 
 
 @dataclass(frozen=True)
+class CashflowEvent:
+    """One projected cash movement (M9).
+
+    `category` drives rendering: "interest" rows are flagged as loan-interest
+    outflows (💸), "coupon"/"principal"/"insurance"/"other" render plain.
+    `is_estimate` marks rows whose amount or date is an estimate rather than
+    a contractual figure.
+    """
+
+    date: date
+    label: str
+    amount: Decimal
+    currency: str
+    category: str = "other"
+    is_estimate: bool = False
+
+
+@dataclass(frozen=True)
+class Projection:
+    events: list[CashflowEvent]
+    horizon_days: int
+    net: dict[str, Decimal]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     total_cost: dict[str, Decimal]
     annual_coupon: dict[str, Decimal]
@@ -57,3 +87,10 @@ class DigestInput:
     cashflow: Cashflow | None
     snapshot: Snapshot | None
     exceptions: list[str] = field(default_factory=list)
+    projected: Projection | None = None
+    # One-line Traditional-Chinese portfolio-level takeaway from the LLM
+    # news analysis. None when the LLM step didn't run.
+    news_overview: str | None = None
+    # M11 — morning greeting block (早安 + 勉勵 + 笑話), rendered right
+    # under the title. None hides the block entirely.
+    greeting: str | None = None

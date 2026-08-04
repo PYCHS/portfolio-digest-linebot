@@ -11,9 +11,12 @@
 📌 Portfolio Snapshot (投資組合快照) (Cost-based)
 - (unavailable / 無資料)
 
+📅 Projected Cashflow (預估現金流)
+- (unavailable / 無資料)
+
 💰 Cashflow (現金流) (Ledger)
 - (unavailable / 無資料)
 
 🧾 Notes (備註)
-- Data gaps (資料缺漏): News, FX, Ledger, Positions unavailable
+- Data gaps (資料缺漏): News, FX, Ledger, Positions, Projection unavailable
 - Exceptions (異常): ledger_csv_parse_error: 2 rows skipped

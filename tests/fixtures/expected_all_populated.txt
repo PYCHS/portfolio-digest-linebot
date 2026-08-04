@@ -17,6 +17,12 @@
 - Est. Annual Coupon (預估年息): 760.00 USD (5.15% yield / 殖利率)
 - Next Coupon (7d) (七日內下個利息): ACME 2026-05-01 27.50 USD
 
+📅 Projected Cashflow (預估現金流)
+- 2026-05-01 +27.50 USD ACME 配息
+- 2026-06-04 -40.00 CHF 💸Repo interest (預估)
+- Net (60d 淨額): -40.00 CHF | +27.50 USD
+- 註: 債券配息通常於配息日後約一週入到銀行帳戶
+
 💰 Cashflow (現金流) (Ledger)
 - Today (今日): +55.00 USD | -12.50 CHF
 - MTD (本月累計): +1,065.00 USD | +197.50 CHF

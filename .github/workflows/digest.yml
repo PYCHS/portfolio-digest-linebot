@@ -27,6 +27,8 @@ jobs:
       LOG_LEVEL: INFO
       LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
       LINE_GROUP_ID: ${{ secrets.LINE_GROUP_ID }}
+      # Optional — when unset, the news section falls back to plain headlines.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +44,8 @@ jobs:
           WATCHLIST_YAML_B64: ${{ secrets.WATCHLIST_YAML_B64 }}
           LEDGER_CSV_B64: ${{ secrets.LEDGER_CSV_B64 }}
           POSITIONS_CSV_B64: ${{ secrets.POSITIONS_CSV_B64 }}
+          RECURRING_CSV_B64: ${{ secrets.RECURRING_CSV_B64 }}
+          LLM_CONTEXT_TXT_B64: ${{ secrets.LLM_CONTEXT_TXT_B64 }}
         run: |
           set -euo pipefail
           mkdir -p private
@@ -60,6 +64,15 @@ jobs:
             printf '%s' "$POSITIONS_CSV_B64" | base64 -d > private/positions.csv
           else
             cp data/positions.example.csv private/positions.csv
+          fi
+          # Recurring cashflow schedule and LLM context are optional; when
+          # the secrets are unset the files are simply absent and the digest
+          # degrades gracefully (positions-only projection, default context).
+          if [ -n "${RECURRING_CSV_B64:-}" ]; then
+            printf '%s' "$RECURRING_CSV_B64" | base64 -d > private/recurring.csv
+          fi
+          if [ -n "${LLM_CONTEXT_TXT_B64:-}" ]; then
+            printf '%s' "$LLM_CONTEXT_TXT_B64" | base64 -d > private/llm_context.txt
           fi
 
       - name: Run digest
