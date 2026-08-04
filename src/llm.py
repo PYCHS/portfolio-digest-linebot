@@ -153,30 +153,96 @@ def analyze_news(
 GREETING_MAX_TOKENS = 400
 WEEKDAYS_ZH = ["一", "二", "三", "四", "五", "六", "日"]
 
-GREETING_SYSTEM_PROMPT = """你是一個溫暖的家族投資群組小助理。請產生今天的早安問候，繁體中文，格式恰好三行：
-第1行：跟大家說早安（提到今天星期幾），加上溫暖的表情符號 ☀️🌱💪🧡 之類
-第2行：一句勉勵大家工作與生活的話（真誠不老套，可以呼應星期幾，例如週一打氣、週五快週末）
-第3行：以「😄 今日笑話：」開頭，講一個簡短好笑的笑話（可以是冷笑話或諧音梗，避免太常見的老梗，不要嘲諷特定族群）
+GREETING_SYSTEM_PROMPT = """你是一個家族投資群組的小助理。請產生今天的早安問候，繁體中文，格式恰好三行：
+第1行：跟大家說早安（提到今天星期幾），語氣自然、簡短，可以帶一兩個溫暖的表情符號
+第2行：使用者會給你「今日名言」。請原封不動輸出那一整行（含「——作者」），不要改字、不要換成別的名言、不要加上你自己的註解
+第3行：以「😄 今日笑話：」開頭，講一個簡短的笑話（可以是冷笑話或諧音梗，避免太常見的老梗，不要嘲諷特定族群）
 
-只輸出這三行文字，不要其他說明。"""
+只輸出這三行文字，不要其他說明。不要寫「加油」「你可以的」「充滿希望的一天」這類空泛口號。"""
 
-# Rotating offline greetings — used when no API key is set or the API call
-# fails. Picked deterministically by date so the family still gets a fresh
-# line each day without any network dependency.
-FALLBACK_GREETINGS = [
-    "☀️ 早安！新的一天，大家辛苦了 🧡\n今天也請帶著從容的心情，好好工作、好好生活 💪\n😄 今日笑話：為什麼債券最守信用？因為它每半年都準時「付出真心（息）」。",
-    "🌤️ 早安呀！願大家今天順順利利 🌱\n工作再忙，也記得抬頭喝口水、深呼吸一下 🧡\n😄 今日笑話：老闆問我為什麼上班在笑，我說我在複利——快樂也會複利的！",
-    "☀️ 早安！今天也是值得期待的一天 💪\n穩穩的，就像我們的配息一樣，慢慢累積就很可觀 🧡\n😄 今日笑話：存款對我說：你不理財，財不理你。我說：可是我很理你啊，你都不變多。",
-    "🌞 早安，親愛的家人們 🧡\n照顧好自己，就是最好的長期投資 🌱\n😄 今日笑話：為什麼匯率最會演戲？因為它每天都在「升」「貶」不定。",
-    "☀️ 早安！又是充滿希望的一天 💪\n不論今天遇到什麼，家人永遠是彼此的靠山 🧡\n😄 今日笑話：我問理專睡前都做什麼？他說：數息（利息）啊，比數羊有效多了。",
-    "🌅 早安！祝大家今天心情像升息的定存一樣穩穩向上 🧡\n累的時候休息一下沒關係，我們走的是長期路線 🌱\n😄 今日笑話：為什麼 FCN 最有禮貌？因為它每個月都準時來「打招呼（配息）」。",
-    "☀️ 週末愉快，早安 🧡\n好好休息、陪陪家人，充飽電再出發 🌱\n😄 今日笑話：投資人最喜歡的天氣？「牛」毛細雨。",
+# Curated quotes with real attribution — deliberately understated rather than
+# motivational-poster material. Rotated by date; the same list feeds both the
+# LLM path (injected verbatim, so attribution can't be hallucinated) and the
+# offline fallback.
+QUOTES = [
+    "「你能掌控的是自己的心智，而不是外在的事件；認清這一點，你就會找到力量。」——馬可・奧理略《沉思錄》",
+    "「別再爭論一個好人該是什麼樣子，去成為一個。」——馬可・奧理略《沉思錄》",
+    "「我們聽到的一切都是意見，不是事實；我們看到的一切都是視角，不是真相。」——馬可・奧理略《沉思錄》",
+    "「我們在想像中受的苦，往往多過在現實中受的苦。」——塞內卡",
+    "「知道自己為何而活的人，幾乎能忍受任何一種生活。」——尼采",
+    "「在隆冬，我終於知道，我身上有一個不可戰勝的夏天。」——卡繆",
+    "「想像力比知識更重要。」——愛因斯坦",
+    "「面對陽光，陰影就會落在你身後。」——海倫・凱勒",
+    "「走得最慢的人，只要不迷失方向，也比漫無目的地徘徊的人走得快。」——萊辛",
+    "「我不怕練過一萬種踢法的人，我怕的是把一種踢法練了一萬次的人。」——李小龍",
+    "「盛年不重來，一日難再晨。及時當勉勵，歲月不待人。」——陶淵明〈雜詩〉",
+    "「三軍可奪帥也，匹夫不可奪志也。」——《論語・子罕》",
+    "「富貴不能淫，貧賤不能移，威武不能屈。」——《孟子・滕文公下》",
+    "「不積跬步，無以至千里；不積小流，無以成江海。」——《荀子・勸學》",
+    "「人間有味是清歡。」——蘇軾〈浣溪沙〉",
+    "「行到水窮處，坐看雲起時。」——王維〈終南別業〉",
+    "「千磨萬擊還堅勁，任爾東西南北風。」——鄭燮〈竹石〉",
+    "「怕什麼真理無窮，進一寸有一寸的歡喜。」——胡適",
+    "「讀書好比串門兒——隱身的串門兒。」——楊絳〈讀書苦樂〉",
+    "「希望是附麗於存在的，有存在，便有希望，有希望，便是光明。」——魯迅",
+    "「當你穿過了暴風雨，你已不再是走進暴風雨時的那個人。」——村上春樹《海邊的卡夫卡》",
+    "「賺大錢的訣竅不在於買進賣出，而在於等待。」——查理・蒙格",
+    "「成功的投資需要時間、紀律與耐心。」——華倫・巴菲特",
+    "「建立聲譽需要二十年，毀掉它只要五分鐘。」——華倫・巴菲特",
 ]
+
+# Openers and jokes rotate on their own cycles. Lengths are coprime with
+# len(QUOTES) so the three parts recombine for months before repeating.
+GREETING_OPENERS = [
+    "☀️ 早安，星期{w}。新的一天開始了 🧡",
+    "🌤️ 早安，星期{w}。今天也好好過 🌱",
+    "🌞 星期{w}，早安 🧡",
+    "☀️ 早安，星期{w}了 🌱",
+    "🌅 早安，星期{w}的早晨 🧡",
+]
+
+GREETING_JOKES = [
+    "😄 今日笑話：為什麼債券最守信用？因為它每半年都準時「付出真心（息）」。",
+    "😄 今日笑話：老闆問我為什麼上班在笑，我說我在複利——快樂也會複利的！",
+    "😄 今日笑話：存款對我說：你不理財，財不理你。我說：可是我很理你啊，你都不變多。",
+    "😄 今日笑話：為什麼匯率最會演戲？因為它每天都在「升」「貶」不定。",
+    "😄 今日笑話：我問理專睡前都做什麼？他說：數息（利息）啊，比數羊有效多了。",
+    "😄 今日笑話：為什麼 FCN 最有禮貌？因為它每個月都準時來「打招呼（配息）」。",
+    "😄 今日笑話：投資人最喜歡的天氣？「牛」毛細雨。",
+]
+
+
+def quote_of_the_day(today: "Date") -> str:
+    """Deterministic pick from QUOTES — same date, same quote."""
+    return QUOTES[today.toordinal() % len(QUOTES)]
 
 
 def fallback_greeting(today: "Date") -> str:
     """Deterministic offline greeting — same date, same text."""
-    return FALLBACK_GREETINGS[today.toordinal() % len(FALLBACK_GREETINGS)]
+    ordinal = today.toordinal()
+    opener = GREETING_OPENERS[ordinal % len(GREETING_OPENERS)]
+    joke = GREETING_JOKES[ordinal % len(GREETING_JOKES)]
+    return "\n".join(
+        [
+            opener.format(w=WEEKDAYS_ZH[today.weekday()]),
+            quote_of_the_day(today),
+            joke,
+        ]
+    )
+
+
+def _ensure_quote(text: str, quote: str) -> str:
+    """Splice the day's quote back in if the model paraphrased or dropped it.
+
+    The quote is the one part we don't want the model improvising on — a
+    misattributed 名言 is worse than no 名言 — so this is a cheap guarantee
+    rather than a reason to discard an otherwise good greeting.
+    """
+    if quote in text:
+        return text
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    lines.insert(1 if len(lines) >= 2 else len(lines), quote)
+    return "\n".join(lines)
 
 
 def generate_greeting(
@@ -192,6 +258,7 @@ def generate_greeting(
     rotation and reports one exception string.
     """
     weekday = WEEKDAYS_ZH[today.weekday()]
+    quote = quote_of_the_day(today)
     body = {
         "model": model,
         "max_tokens": GREETING_MAX_TOKENS,
@@ -199,7 +266,7 @@ def generate_greeting(
         "messages": [
             {
                 "role": "user",
-                "content": f"今天是 {today.isoformat()}，星期{weekday}。",
+                "content": f"今天是 {today.isoformat()}，星期{weekday}。\n今日名言：{quote}",
             }
         ],
     }
@@ -218,7 +285,7 @@ def generate_greeting(
         text = resp.json()["content"][0]["text"].strip()
         if not text:
             raise ValueError("empty greeting")
-        return text, []
+        return _ensure_quote(text, quote), []
     except (
         requests.RequestException,
         json.JSONDecodeError,

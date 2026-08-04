@@ -121,28 +121,75 @@ def test_sends_traditional_chinese_system_prompt(requests_mock):
 
 from datetime import date
 
-from src.llm import FALLBACK_GREETINGS, fallback_greeting, generate_greeting
+from datetime import timedelta
+
+from src.llm import (
+    GREETING_JOKES,
+    QUOTES,
+    fallback_greeting,
+    generate_greeting,
+    quote_of_the_day,
+)
 
 
-def test_fallback_greeting_is_deterministic_and_rotates():
-    d1 = date(2026, 8, 4)
+def test_fallback_greeting_is_deterministic_and_well_formed():
+    d1 = date(2026, 8, 4)  # Tuesday
     assert fallback_greeting(d1) == fallback_greeting(d1)
-    texts = {fallback_greeting(date(2026, 8, 4 + i)) for i in range(len(FALLBACK_GREETINGS))}
-    assert len(texts) == len(FALLBACK_GREETINGS)
-    assert all("早安" in t or "週末" in t for t in texts)
-    assert all("😄 今日笑話" in t for t in texts)
+    lines = fallback_greeting(d1).splitlines()
+    assert len(lines) == 3
+    assert "早安" in lines[0] and "星期二" in lines[0]
+    assert lines[1] == quote_of_the_day(d1)
+    assert lines[2] in GREETING_JOKES
 
 
-def test_generate_greeting_success(requests_mock):
+def test_quotes_rotate_over_the_full_list():
+    start = date(2026, 8, 4)
+    picked = {quote_of_the_day(start + timedelta(days=i)) for i in range(len(QUOTES))}
+    assert picked == set(QUOTES)
+
+
+def test_quotes_all_carry_an_attribution():
+    # A quote without a source is exactly the 心靈雞湯 this list exists to avoid.
+    assert all(q.startswith("「") and "」——" in q for q in QUOTES)
+
+
+def test_greeting_parts_recombine_rather_than_repeating_as_a_block():
+    start = date(2026, 8, 4)
+    greetings = {fallback_greeting(start + timedelta(days=i)) for i in range(60)}
+    assert len(greetings) == 60
+
+
+def test_generate_greeting_injects_the_quote_and_keeps_model_text(requests_mock):
+    today = date(2026, 8, 4)
+    quote = quote_of_the_day(today)
+    requests_mock.post(
+        API_URL,
+        json={
+            "content": [
+                {"type": "text", "text": f"☀️ 早安，星期二 🧡\n{quote}\n😄 今日笑話：..."}
+            ]
+        },
+    )
+    text, exc = generate_greeting(today, api_key="k")
+    assert exc == []
+    assert text.startswith("☀️ 早安")
+    assert quote in text
+    body = requests_mock.request_history[0].json()
+    content = body["messages"][0]["content"]
+    assert "星期二" in content  # 2026-08-04 is a Tuesday
+    assert quote in content  # the model is told which quote to use
+
+
+def test_generate_greeting_splices_quote_back_when_model_drops_it(requests_mock):
+    today = date(2026, 8, 4)
     requests_mock.post(
         API_URL,
         json={"content": [{"type": "text", "text": "☀️ 早安！\n加油！\n😄 今日笑話：..."}]},
     )
-    text, exc = generate_greeting(date(2026, 8, 4), api_key="k")
+    text, exc = generate_greeting(today, api_key="k")
     assert exc == []
-    assert text.startswith("☀️ 早安")
-    body = requests_mock.request_history[0].json()
-    assert "星期二" in body["messages"][0]["content"]  # 2026-08-04 is a Tuesday
+    assert quote_of_the_day(today) in text
+    assert text.splitlines()[1] == quote_of_the_day(today)
 
 
 def test_generate_greeting_api_error_falls_back(requests_mock):
