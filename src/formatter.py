@@ -9,9 +9,7 @@ YIELD_QUANTUM = Decimal("0.01")
 
 def render(d: DigestInput) -> str:
     lines: list[str] = []
-    lines.append(
-        f"【Daily Investment Digest (每日投資摘要)】{d.date_str} (Asia/Taipei)"
-    )
+    lines.append(f"【每日投資摘要】{d.date_str}（台北時間）")
     lines.append("")
 
     if d.greeting:
@@ -19,62 +17,53 @@ def render(d: DigestInput) -> str:
         lines.append("")
 
     is_alert = bool(d.news) and any(n.is_alert for n in d.news)
-    lines.append(
-        "⚠️ Status (狀態): Alert (警報)"
-        if is_alert
-        else "✅ Status (狀態): All clear (一切正常)"
-    )
+    lines.append("⚠️ 狀態：警報" if is_alert else "✅ 狀態：一切正常")
     lines.append("")
 
-    lines.append("\U0001f4f0 News (新聞) (0–1 per issuer)")
-    if d.news is None:
-        lines.append("- (unavailable / 無資料)")
-    elif not d.news:
-        lines.append("- (no items / 無)")
-    else:
-        for n in d.news:
-            if n.summary_zh:
-                # LLM-enriched rendering: Chinese summary + portfolio impact.
-                head = f"- 【{n.impact or '中性'}】{n.issuer_id}: {n.summary_zh}"
-                if n.impact_reason:
-                    head += f" — {n.impact_reason}"
-                lines.append(f"{head} ({n.source})")
-            else:
-                lines.append(f"- {n.issuer_id}: {n.summary} ({n.source})")
-            if n.link:
-                lines.append(f"  {n.link}")
-        if d.news_overview:
-            lines.append(f"- 整體評估 (Overall): {d.news_overview}")
-    lines.append("")
-
-    lines.append("\U0001f4b1 FX (匯率)")
+    lines.append("\U0001f4b1 匯率")
     if d.fx is None:
-        lines.append("- (unavailable / 無資料)")
+        lines.append("- 無資料")
     else:
         if d.fx.usd_chf_dod_pct is None:
-            dod = "Δ N/A"
+            dod = "較前日 無資料"
         else:
-            dod = f"Δ {d.fx.usd_chf_dod_pct:+.2f}% DoD"
+            dod = f"較前日 {d.fx.usd_chf_dod_pct:+.2f}%"
         # Surface staleness when the rate's as-of date isn't today (Taipei).
         # Frankfurter publishes weekday rates around 15:00 CET, so a digest
         # fired before then — or on a weekend / holiday — gets an earlier
         # business day's rate; saying so up front avoids "is this today's
         # number?" confusion.
         if d.fx.as_of and d.fx.as_of.isoformat() != d.date_str:
-            stale = f", as of {d.fx.as_of.isoformat()}"
+            stale = f"，資料日期 {d.fx.as_of.isoformat()}"
         else:
             stale = ""
-        lines.append(f"- USD/CHF: {d.fx.usd_chf:.4f} ({dod}{stale})")
+        lines.append(f"- USD/CHF: {d.fx.usd_chf:.4f}（{dod}{stale}）")
         lines.append(f"- CHF/USD: {d.fx.chf_usd:.4f}")
     lines.append("")
 
-    lines.append("\U0001f4cc Portfolio Snapshot (投資組合快照) (Cost-based)")
+    lines.append("\U0001f4f0 新聞")
+    if d.news is None:
+        lines.append("- 無資料")
+    elif not d.news:
+        lines.append("- 今日無相關新聞")
+    elif d.news_overview:
+        # One consolidated paragraph rather than a per-item list: the family
+        # reads this on a phone, and the links made it several screens long.
+        lines.append(d.news_overview)
+    else:
+        # No LLM enrichment available — fall back to bare headlines, still
+        # without links.
+        for n in d.news:
+            lines.append(f"- {n.issuer_id}: {n.summary}")
+    lines.append("")
+
+    lines.append("\U0001f4cc 投資組合快照（依成本計）")
     if d.snapshot is None:
-        lines.append("- (unavailable / 無資料)")
+        lines.append("- 無資料")
     else:
         s = d.snapshot
         for ccy in sorted(s.total_cost):
-            lines.append(f"- Total Cost (總成本): {s.total_cost[ccy]:,.2f} {ccy}")
+            lines.append(f"- 總成本：{s.total_cost[ccy]:,.2f} {ccy}")
         for ccy in sorted(s.annual_coupon):
             coupon = s.annual_coupon[ccy]
             cost = s.total_cost.get(ccy)
@@ -87,32 +76,30 @@ def render(d: DigestInput) -> str:
                 yield_pct = (coupon / cost * Decimal(100)).quantize(
                     YIELD_QUANTUM, rounding=ROUND_HALF_UP
                 )
-                suffix = f" ({yield_pct:.2f}% yield / 殖利率)"
+                suffix = f"（殖利率 {yield_pct:.2f}%）"
             else:
                 suffix = ""
-            lines.append(
-                f"- Est. Annual Coupon (預估年息): {coupon:,.2f} {ccy}{suffix}"
-            )
+            lines.append(f"- 預估年息：{coupon:,.2f} {ccy}{suffix}")
         if s.next_coupon is None:
-            lines.append("- Next Coupon (7d) (七日內下個利息): none (無)")
+            lines.append("- 七日內下個利息：無")
         else:
             c = s.next_coupon
             lines.append(
-                f"- Next Coupon (7d) (七日內下個利息): {c.issuer} {c.date.isoformat()} "
+                f"- 七日內下個利息：{c.issuer} {c.date.isoformat()} "
                 f"{c.amount:,.2f} {c.currency}"
             )
         for issuer in s.uncosted_issuers:
-            lines.append(f"- {issuer}: Cost unavailable (成本不明)")
+            lines.append(f"- {issuer}：成本不明")
     lines.append("")
 
-    lines.append("\U0001f4c5 Projected Cashflow (預估現金流)")
+    lines.append("\U0001f4c5 預估現金流")
     if d.projected is None:
-        lines.append("- (unavailable / 無資料)")
+        lines.append("- 無資料")
     else:
         p = d.projected
         has_coupon_inflow = False
         if not p.events:
-            lines.append(f"- (next {p.horizon_days}d: none / 無)")
+            lines.append(f"- 未來 {p.horizon_days} 天：無")
         else:
             for e in p.events:
                 mark = "💸" if e.category == "interest" else ""
@@ -127,7 +114,7 @@ def render(d: DigestInput) -> str:
                 f"{p.net[ccy]:+,.2f} {ccy}" for ccy in sorted(p.net)
             ]
             lines.append(
-                f"- Net ({p.horizon_days}d 淨額): {' | '.join(net_parts)}"
+                f"- {p.horizon_days} 天淨額：{' | '.join(net_parts)}"
             )
         # Rendered even when the horizon is empty — that is exactly the case
         # where "when does money next arrive?" needs answering.
@@ -141,18 +128,18 @@ def render(d: DigestInput) -> str:
             else:
                 tail = f" (還有 {p.next_inflow_days} 天)"
             lines.append(
-                f"- 💵 下次進帳 (Next inflow): {nx.date.isoformat()} "
+                f"- 💵 下次進帳：{nx.date.isoformat()} "
                 f"{nx.amount:+,.2f} {nx.currency} {nx.label}{est}{tail}"
             )
             if nx.category == "coupon":
                 has_coupon_inflow = True
         if has_coupon_inflow:
-            lines.append("- 註: 債券配息通常於配息日後約一週入到銀行帳戶")
+            lines.append("- 註：債券配息通常於配息日後約一週入到銀行帳戶")
     lines.append("")
 
-    lines.append("\U0001f4b0 Cashflow (現金流) (Ledger)")
+    lines.append("\U0001f4b0 現金流（帳本）")
     if d.cashflow is None:
-        lines.append("- (unavailable / 無資料)")
+        lines.append("- 無資料")
     else:
         cf = d.cashflow
         zero = Decimal("0.00")
@@ -162,37 +149,29 @@ def render(d: DigestInput) -> str:
         mtd_chf = cf.mtd.get("CHF", zero)
         bal_usd = cf.bal.get("USD", zero)
         bal_chf = cf.bal.get("CHF", zero)
-        lines.append(
-            f"- Today (今日): {today_usd:+,.2f} USD | {today_chf:+,.2f} CHF"
-        )
-        lines.append(
-            f"- MTD (本月累計): {mtd_usd:+,.2f} USD | {mtd_chf:+,.2f} CHF"
-        )
-        lines.append(
-            f"- Bal (餘額): USD {bal_usd:,.2f} | CHF {bal_chf:,.2f}"
-        )
+        lines.append(f"- 今日：{today_usd:+,.2f} USD | {today_chf:+,.2f} CHF")
+        lines.append(f"- 本月累計：{mtd_usd:+,.2f} USD | {mtd_chf:+,.2f} CHF")
+        lines.append(f"- 餘額：USD {bal_usd:,.2f} | CHF {bal_chf:,.2f}")
     lines.append("")
 
     gaps: list[str] = []
     if d.news is None:
-        gaps.append("News")
+        gaps.append("新聞")
     if d.fx is None:
-        gaps.append("FX")
+        gaps.append("匯率")
     if d.cashflow is None:
-        gaps.append("Ledger")
+        gaps.append("帳本")
     if d.snapshot is None:
-        gaps.append("Positions")
+        gaps.append("持倉")
     if d.projected is None:
-        gaps.append("Projection")
+        gaps.append("現金流預估")
 
     if gaps or d.exceptions:
-        lines.append("\U0001f9fe Notes (備註)")
+        lines.append("\U0001f9fe 備註")
         if gaps:
-            lines.append(
-                f"- Data gaps (資料缺漏): {', '.join(gaps)} unavailable"
-            )
+            lines.append(f"- 資料缺漏：{'、'.join(gaps)}")
         if d.exceptions:
-            lines.append(f"- Exceptions (異常): {'; '.join(d.exceptions)}")
+            lines.append(f"- 異常：{'; '.join(d.exceptions)}")
         lines.append("")
 
     while lines and lines[-1] == "":

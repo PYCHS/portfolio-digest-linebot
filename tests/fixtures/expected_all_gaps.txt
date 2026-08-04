@@ -1,22 +1,22 @@
-【Daily Investment Digest (每日投資摘要)】2026-04-25 (Asia/Taipei)
+【每日投資摘要】2026-04-25（台北時間）
 
-✅ Status (狀態): All clear (一切正常)
+✅ 狀態：一切正常
 
-📰 News (新聞) (0–1 per issuer)
-- (unavailable / 無資料)
+💱 匯率
+- 無資料
 
-💱 FX (匯率)
-- (unavailable / 無資料)
+📰 新聞
+- 無資料
 
-📌 Portfolio Snapshot (投資組合快照) (Cost-based)
-- (unavailable / 無資料)
+📌 投資組合快照（依成本計）
+- 無資料
 
-📅 Projected Cashflow (預估現金流)
-- (unavailable / 無資料)
+📅 預估現金流
+- 無資料
 
-💰 Cashflow (現金流) (Ledger)
-- (unavailable / 無資料)
+💰 現金流（帳本）
+- 無資料
 
-🧾 Notes (備註)
-- Data gaps (資料缺漏): News, FX, Ledger, Positions, Projection unavailable
-- Exceptions (異常): ledger_csv_parse_error: 2 rows skipped
+🧾 備註
+- 資料缺漏：新聞、匯率、帳本、持倉、現金流預估
+- 異常：ledger_csv_parse_error: 2 rows skipped

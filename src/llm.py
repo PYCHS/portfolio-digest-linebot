@@ -23,7 +23,8 @@ API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-haiku-4-5"
 DEFAULT_TIMEOUT = 45.0
-MAX_TOKENS = 1500
+# Headroom for the per-item JSON plus a 150-250 character overall paragraph.
+MAX_TOKENS = 2500
 
 VALID_IMPACTS = {"利多", "利空", "中性", "無影響"}
 
@@ -43,7 +44,11 @@ SYSTEM_PROMPT = """你是一間家族投資公司的分析助理。使用者會�
 3. reason_zh：一句話說明為什麼對我們有／沒有影響（30字內，站在債券持有人／FCN持有人角度）
 4. alert：布林值。只有在可能影響債息安全的重大信用事件（違約、降評、重大訴訟賠償、破產疑慮），或 FCN 連結股票暴跌時才是 true
 
-最後給 overall_zh：一句話總結今天新聞對整體投資組合的影響（40字內）。
+最後給 overall_zh：把今天所有新聞整合成「一整段」繁體中文短文（150–250字），這是家族群組唯一會讀到的新聞內容，所以要能獨立看懂：
+- 依重要性排序敘述，重要的先講，不重要的一句帶過或直接省略
+- 寫成連貫的段落，不要條列、不要編號、不要分行
+- 直接寫結論與對我們持倉的實質影響，不要逐則複述英文標題、不要附網址或出處
+- 若當天新聞對我們都沒有實質影響，就直接說明沒有重大事項，不必硬湊字數
 
 只輸出 JSON，不要任何其他文字，格式：
 {{"items":[{{"index":0,"summary_zh":"...","impact":"...","reason_zh":"...","alert":false}}],"overall_zh":"..."}}"""

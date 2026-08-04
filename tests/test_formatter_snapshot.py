@@ -121,8 +121,8 @@ def test_status_flips_to_alert_when_news_item_is_alert():
         exceptions=d.exceptions,
     )
     out = render(d_alert)
-    assert "⚠️ Status (狀態): Alert (警報)" in out
-    assert "✅ Status (狀態): All clear (一切正常)" not in out
+    assert "⚠️ 狀態：警報" in out
+    assert "✅ 狀態：一切正常" not in out
 
 
 def test_est_annual_coupon_omits_yield_when_cost_currency_is_missing():
@@ -146,7 +146,7 @@ def test_est_annual_coupon_omits_yield_when_cost_currency_is_missing():
         exceptions=base.exceptions,
     )
     out = render(d)
-    assert "Est. Annual Coupon (預估年息): 760.00 USD" in out
+    assert "預估年息：760.00 USD" in out
     assert "yield" not in out
     assert "殖利率" not in out
 
@@ -170,7 +170,7 @@ def test_est_annual_coupon_omits_yield_when_total_cost_is_zero():
         exceptions=base.exceptions,
     )
     out = render(d)
-    assert "Est. Annual Coupon (預估年息): 760.00 USD" in out
+    assert "預估年息：760.00 USD" in out
     assert "yield" not in out
 
 
@@ -194,7 +194,7 @@ def test_fx_line_appends_as_of_when_rate_is_stale():
         exceptions=base.exceptions,
     )
     out = render(d)
-    assert "USD/CHF: 0.9123 (Δ -0.12% DoD, as of 2026-04-24)" in out
+    assert "USD/CHF: 0.9123（較前日 -0.12%，資料日期 2026-04-24）" in out
 
 
 def test_fx_line_omits_as_of_when_rate_matches_today():
@@ -215,29 +215,51 @@ def test_fx_line_omits_as_of_when_rate_matches_today():
         exceptions=base.exceptions,
     )
     out = render(d)
-    assert "USD/CHF: 0.9123 (Δ -0.12% DoD)" in out
-    assert "as of" not in out
+    assert "USD/CHF: 0.9123（較前日 -0.12%）" in out
+    assert "資料日期" not in out
 
 
-def test_news_item_without_link_renders_without_continuation_line():
-    """When link is None/empty, the formatter must not emit an empty
-    `  ` continuation line — older fixtures and any source that doesn't
-    surface a link should still render cleanly."""
+def test_news_never_renders_links_or_sources():
+    """Links made the message several phone-screens long; sources add nothing
+    once the summary is in Chinese. Neither may reach the group."""
     base = _all_populated()
-    no_link = NewsItem("ACME", "Q1 results in line with guidance", "acme.com")
+    linked = NewsItem(
+        "ACME",
+        "Q1 results in line with guidance",
+        "acme.com",
+        link="https://acme.com/q1",
+    )
     d = DigestInput(
         date_str=base.date_str,
-        news=[no_link],
+        news=[linked],
         fx=base.fx,
         snapshot=base.snapshot,
         cashflow=base.cashflow,
         exceptions=base.exceptions,
     )
     out = render(d)
-    assert "- ACME: Q1 results in line with guidance (acme.com)" in out
-    # No bare-indent continuation line (`  ` followed by nothing meaningful).
-    for line in out.splitlines():
-        assert not (line.startswith("  ") and line.strip() == "")
+    assert "- ACME: Q1 results in line with guidance" in out
+    assert "https://" not in out
+    assert "acme.com" not in out
+
+
+def test_news_overview_replaces_the_item_list_entirely():
+    """With LLM enrichment the section is one paragraph, not a per-item list."""
+    base = _all_populated()
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=base.snapshot,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+        news_overview="今日新聞對本組合無重大影響，僅 ACME 公布財報符合預期。",
+    )
+    out = render(d)
+    assert "今日新聞對本組合無重大影響，僅 ACME 公布財報符合預期。" in out
+    # The individual headlines must not also appear.
+    assert "New CFO appointed" not in out
+    assert "Q1 results in line with guidance" not in out
 
 
 def test_next_coupon_renders_non_usd_currency():
@@ -263,10 +285,7 @@ def test_next_coupon_renders_non_usd_currency():
         exceptions=base.exceptions,
     )
     out = render(d)
-    assert (
-        "- Next Coupon (7d) (七日內下個利息): Issuer X 2026-05-01 100.00 CHF"
-        in out
-    )
+    assert "- 七日內下個利息：Issuer X 2026-05-01 100.00 CHF" in out
 
 
 def test_greeting_renders_directly_under_title():
@@ -283,11 +302,11 @@ def test_greeting_renders_directly_under_title():
     )
     out = render(d)
     lines = out.splitlines()
-    assert lines[0].startswith("【Daily Investment Digest")
+    assert lines[0].startswith("【每日投資摘要】")
     assert lines[2] == "☀️ 早安！今天星期六 🧡"
     assert lines[4] == "😄 今日笑話：冷冷的"
     assert lines[5] == ""
-    assert "Status (狀態)" in lines[6]
+    assert "狀態" in lines[6]
 
 
 def test_no_greeting_keeps_legacy_layout():
@@ -326,13 +345,13 @@ def test_next_inflow_shown_even_when_horizon_is_empty():
             )
         )
     )
-    assert "- (next 60d: none / 無)" in out
+    assert "- 未來 60 天：無" in out
     assert (
-        "- 💵 下次進帳 (Next inflow): 2026-11-15 +6,157.00 USD 陶氏化學 配息 (還有 204 天)"
+        "- 💵 下次進帳：2026-11-15 +6,157.00 USD 陶氏化學 配息 (還有 204 天)"
         in out
     )
     # The bank-lag note is keyed off the inflow even with an empty horizon.
-    assert "- 註: 債券配息通常於配息日後約一週入到銀行帳戶" in out
+    assert "- 註：債券配息通常於配息日後約一週入到銀行帳戶" in out
 
 
 def test_next_inflow_today_reads_as_today_not_zero_days():
@@ -355,7 +374,7 @@ def test_next_inflow_today_reads_as_today_not_zero_days():
         )
     )
     assert (
-        "- 💵 下次進帳 (Next inflow): 2026-04-25 +83,481.00 USD 南山人壽 配息 (預估) (今天)"
+        "- 💵 下次進帳：2026-04-25 +83,481.00 USD 南山人壽 配息 (預估) (今天)"
         in out
     )
 
@@ -365,4 +384,4 @@ def test_no_next_inflow_line_when_nothing_comes_in():
         _with_projection(Projection(events=[], horizon_days=60, net={}))
     )
     assert "下次進帳" not in out
-    assert "- (next 60d: none / 無)" in out
+    assert "- 未來 60 天：無" in out

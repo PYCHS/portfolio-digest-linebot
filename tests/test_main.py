@@ -93,22 +93,22 @@ def test_dry_run_renders_message_with_data_from_all_sources(
     assert rc == 0
     out = capsys.readouterr().out
 
-    assert out.startswith(
-        "【Daily Investment Digest (每日投資摘要)】2026-04-25 (Asia/Taipei)"
-    )
-    assert "✅ Status (狀態): All clear (一切正常)" in out
-    # News from RSS
+    assert out.startswith("【每日投資摘要】2026-04-25（台北時間）")
+    assert "✅ 狀態：一切正常" in out
+    # News from RSS (no LLM key in this test → bare headlines, no source/link)
     assert "ACME: ACME Q1 results in line with guidance" in out
     # FX (rates rounded to 4dp; DoD = (0.9123 - 0.9134) / 0.9134 * 100 = -0.12)
-    assert "USD/CHF: 0.9123 (Δ -0.12% DoD)" in out
+    assert "USD/CHF: 0.9123（較前日 -0.12%）" in out
     assert "CHF/USD: 1.0961" in out
+    # FX now leads the data sections, ahead of news.
+    assert out.index("💱 匯率") < out.index("📰 新聞")
     # Snapshot
-    assert "Total Cost (總成本): 985,000.00 USD" in out
-    assert "Est. Annual Coupon (預估年息): 50,000.00 USD" in out
+    assert "總成本：985,000.00 USD" in out
+    assert "預估年息：50,000.00 USD" in out
     # Cashflow: today=55.00 USD, MTD=1055.00 USD, both 0 CHF
-    assert "Today (今日): +55.00 USD | +0.00 CHF" in out
-    assert "MTD (本月累計): +1,055.00 USD | +0.00 CHF" in out
-    assert "Bal (餘額): USD 1,055.00 | CHF 0.00" in out
+    assert "今日：+55.00 USD | +0.00 CHF" in out
+    assert "本月累計：+1,055.00 USD | +0.00 CHF" in out
+    assert "餘額：USD 1,055.00 | CHF 0.00" in out
 
 
 def test_default_run_renders_to_stdout_without_pushing(
@@ -124,7 +124,7 @@ def test_default_run_renders_to_stdout_without_pushing(
     rc = main([])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "Daily Investment Digest" in out
+    assert "每日投資摘要" in out
     # No POST to LINE was made
     assert not any("line.me" in r.url for r in requests_mock.request_history)
 
@@ -147,7 +147,7 @@ def test_push_flag_sends_rendered_message_to_line_group(
     body = push_reqs[0].json()
     assert body["to"] == "C-test-group"
     assert body["messages"][0]["type"] == "text"
-    assert "Daily Investment Digest" in body["messages"][0]["text"]
+    assert "每日投資摘要" in body["messages"][0]["text"]
     assert push_reqs[0].headers["Authorization"] == "Bearer test-token"
 
     out = capsys.readouterr().out
@@ -268,8 +268,8 @@ def test_dry_run_without_ledger_renders_zero_cashflow_without_notes_noise(
     assert rc == 0
     out = capsys.readouterr().out
 
-    assert "Today (今日): +0.00 USD | +0.00 CHF" in out
-    assert "MTD (本月累計): +0.00 USD | +0.00 CHF" in out
-    assert "Bal (餘額): USD 0.00 | CHF 0.00" in out
+    assert "今日：+0.00 USD | +0.00 CHF" in out
+    assert "本月累計：+0.00 USD | +0.00 CHF" in out
+    assert "餘額：USD 0.00 | CHF 0.00" in out
     assert "ledger: file not found" not in out
-    assert "Data gaps: Ledger" not in out
+    assert "資料缺漏：帳本" not in out

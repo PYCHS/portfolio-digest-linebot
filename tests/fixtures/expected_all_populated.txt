@@ -1,30 +1,28 @@
-【Daily Investment Digest (每日投資摘要)】2026-04-25 (Asia/Taipei)
+【每日投資摘要】2026-04-25（台北時間）
 
-✅ Status (狀態): All clear (一切正常)
+✅ 狀態：一切正常
 
-📰 News (新聞) (0–1 per issuer)
-- ACME: Q1 results in line with guidance (acme.com)
-  https://acme.com/q1
-- BETA: New CFO appointed (reuters.com)
-  https://reuters.com/beta-cfo
-
-💱 FX (匯率)
-- USD/CHF: 0.9123 (Δ -0.12% DoD)
+💱 匯率
+- USD/CHF: 0.9123（較前日 -0.12%）
 - CHF/USD: 1.0961
 
-📌 Portfolio Snapshot (投資組合快照) (Cost-based)
-- Total Cost (總成本): 14,750.00 USD
-- Est. Annual Coupon (預估年息): 760.00 USD (5.15% yield / 殖利率)
-- Next Coupon (7d) (七日內下個利息): ACME 2026-05-01 27.50 USD
+📰 新聞
+- ACME: Q1 results in line with guidance
+- BETA: New CFO appointed
 
-📅 Projected Cashflow (預估現金流)
+📌 投資組合快照（依成本計）
+- 總成本：14,750.00 USD
+- 預估年息：760.00 USD（殖利率 5.15%）
+- 七日內下個利息：ACME 2026-05-01 27.50 USD
+
+📅 預估現金流
 - 2026-05-01 +27.50 USD ACME 配息
 - 2026-06-04 -40.00 CHF 💸Repo interest (預估)
-- Net (60d 淨額): -40.00 CHF | +27.50 USD
-- 💵 下次進帳 (Next inflow): 2026-05-01 +27.50 USD ACME 配息 (還有 6 天)
-- 註: 債券配息通常於配息日後約一週入到銀行帳戶
+- 60 天淨額：-40.00 CHF | +27.50 USD
+- 💵 下次進帳：2026-05-01 +27.50 USD ACME 配息 (還有 6 天)
+- 註：債券配息通常於配息日後約一週入到銀行帳戶
 
-💰 Cashflow (現金流) (Ledger)
-- Today (今日): +55.00 USD | -12.50 CHF
-- MTD (本月累計): +1,065.00 USD | +197.50 CHF
-- Bal (餘額): USD 1,065.00 | CHF 197.50
+💰 現金流（帳本）
+- 今日：+55.00 USD | -12.50 CHF
+- 本月累計：+1,065.00 USD | +197.50 CHF
+- 餘額：USD 1,065.00 | CHF 197.50

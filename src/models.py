@@ -98,8 +98,10 @@ class DigestInput:
     snapshot: Snapshot | None
     exceptions: list[str] = field(default_factory=list)
     projected: Projection | None = None
-    # One-line Traditional-Chinese portfolio-level takeaway from the LLM
-    # news analysis. None when the LLM step didn't run.
+    # Consolidated Traditional-Chinese news paragraph from the LLM analysis.
+    # When present it *replaces* the per-item list in the rendered digest.
+    # None when the LLM step didn't run — the formatter then falls back to
+    # bare headlines.
     news_overview: str | None = None
     # M11 — morning greeting block (早安 + 勉勵 + 笑話), rendered right
     # under the title. None hides the block entirely.
