@@ -21,6 +21,7 @@
 - 2026-05-01 +27.50 USD ACME 配息
 - 2026-06-04 -40.00 CHF 💸Repo interest (預估)
 - Net (60d 淨額): -40.00 CHF | +27.50 USD
+- 💵 下次進帳 (Next inflow): 2026-05-01 +27.50 USD ACME 配息 (還有 6 天)
 - 註: 債券配息通常於配息日後約一週入到銀行帳戶
 
 💰 Cashflow (現金流) (Ledger)

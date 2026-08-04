@@ -40,6 +40,11 @@ RECURRING_HEADER = [
 CATEGORIES = {"coupon", "principal", "interest", "insurance", "other"}
 TWO_DP = Decimal("0.01")
 
+# How far past the horizon to keep expanding when hunting for the next inflow.
+# Just over a year, so an annual payer (insurance dividend, yearly coupon) is
+# always caught even when today sits right after its payment date.
+INFLOW_LOOKAHEAD_DAYS = 400
+
 
 def _safe_date(year: int, month: int, day: int) -> Date | None:
     try:
@@ -266,20 +271,40 @@ def project_cashflows(
     *,
     horizon_days: int = 60,
 ) -> tuple[Projection | None, list[str]]:
-    """Build the projected-cashflow calendar for [today, today+horizon]."""
+    """Build the projected-cashflow calendar for [today, today+horizon].
+
+    Events are expanded over a longer lookahead than the horizon so the next
+    inflow can be reported even when it falls outside it — with semiannual
+    coupons a 60-day horizon frequently contains no money-in at all.
+    """
     horizon_end = today + timedelta(days=horizon_days)
+    lookahead_end = max(horizon_end, today + timedelta(days=INFLOW_LOOKAHEAD_DAYS))
     exceptions: list[str] = []
 
-    events = _load_position_coupon_events(
-        positions_path, today, horizon_end, exceptions
+    all_events = _load_position_coupon_events(
+        positions_path, today, lookahead_end, exceptions
     )
-    events.extend(
-        _load_recurring_events(recurring_path, today, horizon_end, exceptions)
+    all_events.extend(
+        _load_recurring_events(recurring_path, today, lookahead_end, exceptions)
     )
-    events.sort(key=lambda e: (e.date, -e.amount))
+    all_events.sort(key=lambda e: (e.date, -e.amount))
 
+    events = [e for e in all_events if e.date <= horizon_end]
     net: dict[str, Decimal] = {}
     for e in events:
         net[e.currency] = net.get(e.currency, Decimal("0.00")) + e.amount
 
-    return Projection(events=events, horizon_days=horizon_days, net=net), exceptions
+    next_inflow = next((e for e in all_events if e.amount > 0), None)
+
+    return (
+        Projection(
+            events=events,
+            horizon_days=horizon_days,
+            net=net,
+            next_inflow=next_inflow,
+            next_inflow_days=(
+                (next_inflow.date - today).days if next_inflow else None
+            ),
+        ),
+        exceptions,
+    )

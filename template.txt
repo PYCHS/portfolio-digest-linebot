@@ -24,6 +24,8 @@
 📅 Projected Cashflow (預估現金流)
 - {YYYY-MM-DD} {+/-amount} {CCY} {💸如為借款利息}{label}{ (預估)如為估計值}
 - Net ({N}d 淨額): {+/-amount} USD | {+/-amount} CHF
+- 💵 下次進帳 (Next inflow): {YYYY-MM-DD} {+amount} {CCY} {label} (還有 {N} 天)
+  （往後找滿 400 天，所以視野內全是支出時仍會顯示）
 - 註: 債券配息通常於配息日後約一週入到銀行帳戶
 
 💰 Cashflow (現金流) (Ledger)

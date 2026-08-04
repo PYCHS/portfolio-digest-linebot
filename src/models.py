@@ -66,9 +66,19 @@ class CashflowEvent:
 
 @dataclass(frozen=True)
 class Projection:
+    """Cashflow calendar for the horizon, plus the next inflow beyond it.
+
+    `events` / `net` cover [today, today+horizon_days]. `next_inflow` is the
+    first money-in event found over a much longer lookahead, because with
+    semiannual bond coupons the horizon is regularly all-outflow and "when
+    does money next arrive?" is the question that actually gets asked.
+    """
+
     events: list[CashflowEvent]
     horizon_days: int
     net: dict[str, Decimal]
+    next_inflow: CashflowEvent | None = None
+    next_inflow_days: int | None = None
 
 
 @dataclass(frozen=True)

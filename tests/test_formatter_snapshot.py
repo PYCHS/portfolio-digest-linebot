@@ -76,6 +76,14 @@ def _all_populated() -> DigestInput:
             ],
             horizon_days=60,
             net={"USD": Decimal("27.50"), "CHF": Decimal("-40.00")},
+            next_inflow=CashflowEvent(
+                date=date(2026, 5, 1),
+                label="ACME 配息",
+                amount=Decimal("27.50"),
+                currency="USD",
+                category="coupon",
+            ),
+            next_inflow_days=6,
         ),
     )
 
@@ -285,3 +293,76 @@ def test_greeting_renders_directly_under_title():
 def test_no_greeting_keeps_legacy_layout():
     out = render(_all_populated())
     assert "早安" not in out
+
+
+def _with_projection(p: Projection) -> DigestInput:
+    base = _all_populated()
+    return DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=base.snapshot,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+        projected=p,
+    )
+
+
+def test_next_inflow_shown_even_when_horizon_is_empty():
+    out = render(
+        _with_projection(
+            Projection(
+                events=[],
+                horizon_days=60,
+                net={},
+                next_inflow=CashflowEvent(
+                    date=date(2026, 11, 15),
+                    label="陶氏化學 配息",
+                    amount=Decimal("6157.00"),
+                    currency="USD",
+                    category="coupon",
+                ),
+                next_inflow_days=204,
+            )
+        )
+    )
+    assert "- (next 60d: none / 無)" in out
+    assert (
+        "- 💵 下次進帳 (Next inflow): 2026-11-15 +6,157.00 USD 陶氏化學 配息 (還有 204 天)"
+        in out
+    )
+    # The bank-lag note is keyed off the inflow even with an empty horizon.
+    assert "- 註: 債券配息通常於配息日後約一週入到銀行帳戶" in out
+
+
+def test_next_inflow_today_reads_as_today_not_zero_days():
+    out = render(
+        _with_projection(
+            Projection(
+                events=[],
+                horizon_days=60,
+                net={},
+                next_inflow=CashflowEvent(
+                    date=date(2026, 4, 25),
+                    label="南山人壽 配息",
+                    amount=Decimal("83481.00"),
+                    currency="USD",
+                    category="insurance",
+                    is_estimate=True,
+                ),
+                next_inflow_days=0,
+            )
+        )
+    )
+    assert (
+        "- 💵 下次進帳 (Next inflow): 2026-04-25 +83,481.00 USD 南山人壽 配息 (預估) (今天)"
+        in out
+    )
+
+
+def test_no_next_inflow_line_when_nothing_comes_in():
+    out = render(
+        _with_projection(Projection(events=[], horizon_days=60, net={}))
+    )
+    assert "下次進帳" not in out
+    assert "- (next 60d: none / 無)" in out

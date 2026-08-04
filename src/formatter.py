@@ -110,10 +110,10 @@ def render(d: DigestInput) -> str:
         lines.append("- (unavailable / 無資料)")
     else:
         p = d.projected
+        has_coupon_inflow = False
         if not p.events:
             lines.append(f"- (next {p.horizon_days}d: none / 無)")
         else:
-            has_coupon_inflow = False
             for e in p.events:
                 mark = "💸" if e.category == "interest" else ""
                 est = " (預估)" if e.is_estimate else ""
@@ -129,8 +129,25 @@ def render(d: DigestInput) -> str:
             lines.append(
                 f"- Net ({p.horizon_days}d 淨額): {' | '.join(net_parts)}"
             )
-            if has_coupon_inflow:
-                lines.append("- 註: 債券配息通常於配息日後約一週入到銀行帳戶")
+        # Rendered even when the horizon is empty — that is exactly the case
+        # where "when does money next arrive?" needs answering.
+        if p.next_inflow is not None:
+            nx = p.next_inflow
+            est = " (預估)" if nx.is_estimate else ""
+            if p.next_inflow_days is None:
+                tail = ""
+            elif p.next_inflow_days == 0:
+                tail = " (今天)"
+            else:
+                tail = f" (還有 {p.next_inflow_days} 天)"
+            lines.append(
+                f"- 💵 下次進帳 (Next inflow): {nx.date.isoformat()} "
+                f"{nx.amount:+,.2f} {nx.currency} {nx.label}{est}{tail}"
+            )
+            if nx.category == "coupon":
+                has_coupon_inflow = True
+        if has_coupon_inflow:
+            lines.append("- 註: 債券配息通常於配息日後約一週入到銀行帳戶")
     lines.append("")
 
     lines.append("\U0001f4b0 Cashflow (現金流) (Ledger)")

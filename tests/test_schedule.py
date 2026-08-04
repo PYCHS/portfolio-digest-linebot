@@ -139,3 +139,76 @@ def test_events_sorted_by_date(tmp_path):
     )
     proj, _ = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
     assert [e.label for e in proj.events] == ["Sooner", "Later"]
+
+
+# ---- next inflow (reported even when it falls outside the horizon) ----
+
+
+def test_next_inflow_found_beyond_the_horizon(tmp_path):
+    """The real portfolio's case: horizon is all outflow, coupon is months out."""
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "Loan interest,CHF,-800.00,monthly:1,,,interest,1\n"
+        + "Bond coupon,USD,5000.00,once:2026-11-15,,,coupon,0\n",
+    )
+    proj, _ = project_cashflows(
+        tmp_path / "nope.csv", recurring, TODAY, horizon_days=60
+    )
+    assert all(e.amount < 0 for e in proj.events)  # nothing comes in inside 60d
+    assert proj.next_inflow is not None
+    assert proj.next_inflow.date == date(2026, 11, 15)
+    assert proj.next_inflow.amount == Decimal("5000.00")
+    assert proj.next_inflow_days == (date(2026, 11, 15) - TODAY).days
+
+
+def test_next_inflow_ignores_outflows_and_picks_the_earliest(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "Big later inflow,USD,9000.00,once:2026-10-01,,,coupon,0\n"
+        + "Outflow,USD,-100.00,once:2026-08-20,,,interest,0\n"
+        + "Small sooner inflow,USD,10.00,once:2026-09-01,,,coupon,0\n",
+    )
+    proj, _ = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
+    assert proj.next_inflow is not None
+    assert proj.next_inflow.label == "Small sooner inflow"
+
+
+def test_next_inflow_none_when_nothing_ever_comes_in(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER + "Loan interest,CHF,-800.00,monthly:1,,,interest,1\n",
+    )
+    proj, _ = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
+    assert proj.next_inflow is None
+    assert proj.next_inflow_days is None
+
+
+def test_lookahead_does_not_leak_into_horizon_events_or_net(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER + "Far coupon,USD,5000.00,once:2026-11-15,,,coupon,0\n",
+    )
+    proj, _ = project_cashflows(
+        tmp_path / "nope.csv", recurring, TODAY, horizon_days=60
+    )
+    assert proj.events == []
+    assert proj.net == {}
+    assert proj.next_inflow is not None  # still reported
+
+
+def test_next_inflow_catches_an_annual_payer_just_missed(tmp_path):
+    """Annual payout the day before today's anniversary — needs >365d lookahead."""
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER + "Insurance,USD,83481.00,yearly:8/1,,,insurance,1\n",
+    )
+    proj, _ = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
+    assert proj.next_inflow is not None
+    assert proj.next_inflow.date == date(2027, 8, 1)
