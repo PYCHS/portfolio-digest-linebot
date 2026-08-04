@@ -45,7 +45,9 @@ def push_message(
 
     detail = ""
     try:
-        detail = (resp.json() or {}).get("message", "") or ""
+        body = resp.json()
+        if isinstance(body, dict):
+            detail = body.get("message", "") or ""
     except ValueError:
         detail = (resp.text or "")[:200]
     return False, f"HTTP {resp.status_code}: {detail}".rstrip(": ")

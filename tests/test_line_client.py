@@ -44,6 +44,13 @@ def test_500_returns_failure_with_status(requests_mock):
     assert "500" in err
 
 
+def test_non_object_json_error_body_returns_failure(requests_mock):
+    requests_mock.post(PUSH_URL, status_code=502, json=["unexpected"])
+    ok, err = push_message(text="hi", group_id="C1", access_token="t")
+    assert ok is False
+    assert err == "HTTP 502"
+
+
 def test_network_error_returns_failure_without_status(requests_mock):
     requests_mock.post(PUSH_URL, exc=requests.exceptions.ConnectTimeout)
     ok, err = push_message(text="hi", group_id="C1", access_token="t")
