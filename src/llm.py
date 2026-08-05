@@ -110,9 +110,18 @@ def analyze_news(
         resp.raise_for_status()
         data = resp.json()
         text = data["content"][0]["text"]
+        if not isinstance(text, str):
+            raise TypeError("LLM response text must be a string")
         parsed = json.loads(_strip_fences(text))
+        if not isinstance(parsed, dict):
+            raise TypeError("LLM output must be a JSON object")
         raw_items = parsed["items"]
-        overall = parsed.get("overall_zh") or None
+        if not isinstance(raw_items, list):
+            raise TypeError("LLM output items must be a list")
+        raw_overall = parsed.get("overall_zh")
+        if raw_overall is not None and not isinstance(raw_overall, str):
+            raise TypeError("LLM output overall_zh must be a string")
+        overall = (raw_overall.strip() or None) if raw_overall else None
     except (
         requests.RequestException,
         json.JSONDecodeError,

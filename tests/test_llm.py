@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from src.llm import API_URL, analyze_news
 from src.models import NewsItem
 
@@ -99,6 +101,24 @@ def test_garbage_model_output_returns_originals(requests_mock):
     assert out == ITEMS
     assert overall is None
     assert len(exc) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("items", None), ("overall_zh", ["not", "a", "paragraph"])],
+)
+def test_wrong_output_types_return_originals(requests_mock, field, value):
+    body = _ok_response()
+    payload = json.loads(body["content"][0]["text"])
+    payload[field] = value
+    body["content"][0]["text"] = json.dumps(payload, ensure_ascii=False)
+    requests_mock.post(API_URL, json=body)
+
+    out, overall, exc = analyze_news(ITEMS, api_key="k")
+
+    assert out == ITEMS
+    assert overall is None
+    assert exc == ["llm: TypeError"]
 
 
 def test_empty_news_short_circuits_without_network(requests_mock):
