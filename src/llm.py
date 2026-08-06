@@ -155,7 +155,7 @@ def analyze_news(
                 summary_zh=summary_zh,
                 impact=impact,
                 impact_reason=reason_zh,
-                is_alert=n.is_alert or bool(item.get("alert")),
+                is_alert=n.is_alert or item.get("alert") is True,
             )
         )
     return enriched, overall, []

@@ -66,6 +66,18 @@ def test_alert_flag_from_llm_sets_is_alert(requests_mock):
     assert out[1].is_alert
 
 
+def test_string_false_alert_does_not_trigger_false_alarm(requests_mock):
+    body = _ok_response()
+    payload = json.loads(body["content"][0]["text"])
+    payload["items"][1]["alert"] = "false"
+    body["content"][0]["text"] = json.dumps(payload, ensure_ascii=False)
+    requests_mock.post(API_URL, json=body)
+
+    out, _, _ = analyze_news(ITEMS, api_key="k")
+
+    assert out[1].is_alert is False
+
+
 def test_code_fenced_json_is_tolerated(requests_mock):
     body = _ok_response()
     body["content"][0]["text"] = "```json\n" + body["content"][0]["text"] + "\n```"
