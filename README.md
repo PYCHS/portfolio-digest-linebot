@@ -9,7 +9,7 @@ A production-oriented Python CLI that aggregates portfolio positions, cashflows,
 
 ## Status
 
-**M0–M10 complete.** The end-to-end digest pipeline, LINE delivery, automated tests, scheduling, **M9 — Projected Cashflow** (coupon/interest calendar from `positions.csv` + `recurring.csv`), **M10 — LLM news-impact analysis** (Traditional-Chinese per-headline impact via the Anthropic API, graceful fallback without a key), and **M11 — daily morning greeting** (LLM-generated 早安 + encouragement + joke, offline rotation fallback) are implemented.
+**M0–M11 complete.** The end-to-end digest pipeline, LINE delivery, automated tests, scheduling, **M9 — Projected Cashflow** (coupon/interest calendar from `positions.csv` + `recurring.csv`), **M10 — LLM news-impact analysis** (Traditional-Chinese per-headline impact via the Anthropic API, graceful fallback without a key), and **M11 — daily morning greeting** (LLM-generated 早安 + encouragement + joke, offline rotation fallback) are implemented.
 
 ## Features
 
@@ -34,6 +34,7 @@ config/
 data/
   ledger.example.csv       # safe sample (committed)
   positions.example.csv    # safe sample (committed)
+  recurring.example.csv    # safe recurring-cashflow sample (committed)
 private/                   # gitignored — real data goes here
 template.txt               # message template (single source of truth)
 .env.example               # env var template (committed)
@@ -64,7 +65,7 @@ cp data/ledger.example.csv         private/ledger.csv
 | `private/recurring.csv` | Scheduled cashflows the positions schema can't express: FCN monthly coupons, loan/repo interest, insurance payouts (see `data/recurring.example.csv`) | **optional** — projection then uses bond coupons only |
 | `private/llm_context.txt` | One-paragraph portfolio description injected into the LLM prompt | **optional** — a generic default is used |
 
-`ledger.csv` and `positions.csv` are deliberately distinct: ledger captures actuals, positions captures holdings and the *expected* coupon schedule. A future milestone (M9) will add a separate Projected Cashflow section computed from the positions schedule — those projections will not be merged into the ledger and will be clearly labeled as expected.
+`ledger.csv` and `positions.csv` are deliberately distinct: ledger captures actuals, while positions captures holdings and the *expected* coupon schedule. The Projected Cashflow section combines that schedule with optional `recurring.csv` events; projections are not merged into the ledger and are clearly labeled as expected.
 
 ## Environment variables
 
@@ -145,7 +146,7 @@ base64 -w0 private/ledger.csv
 base64 < private/ledger.csv | tr -d '\n'
 ```
 
-The decode step writes them into `private/` at the start of each run. If a data secret is unset, the workflow falls back to the committed `*.example.*` file — useful for the manual `dry-run` mode but not what you want for a real push.
+The decode step writes configured secrets into `private/` at the start of each run. If the watchlist or positions secret is unset, the workflow falls back to its committed example file. The optional ledger, recurring schedule, and LLM context remain absent when unset, and the application uses the clean fallback behavior described above.
 
 #### Refreshing data secrets
 
@@ -198,4 +199,6 @@ The script prefers `.venv\Scripts\python.exe` if present, otherwise `python` on 
 | M6 | Orchestrator, partial-failure isolation, `--dry-run`, structured logging ✅ |
 | M7 | LINE client + secret-hygiene test ✅ |
 | M8 | Scheduling (GitHub Actions / cron / Task Scheduler) ✅ |
-| M9 | Projected Cashflow section computed from positions schedule (separate from ledger actuals) — planned |
+| M9 | Projected Cashflow from positions and recurring schedules (separate from ledger actuals) ✅ |
+| M10 | Anthropic-powered Traditional-Chinese news-impact analysis with graceful fallback ✅ |
+| M11 | Daily morning greeting with attributed quote, joke, and offline fallback ✅ |
