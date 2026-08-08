@@ -179,10 +179,16 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"error: invalid TIMEZONE: {tz_name!r}\n")
         return 2
 
+    projection_days_raw = os.environ.get("PROJECTION_DAYS", "60")
     try:
-        projection_days = int(os.environ.get("PROJECTION_DAYS", "60"))
+        projection_days = int(projection_days_raw)
+        if projection_days <= 0:
+            raise ValueError
     except ValueError:
-        sys.stderr.write("error: invalid PROJECTION_DAYS\n")
+        sys.stderr.write(
+            f"error: invalid PROJECTION_DAYS: {projection_days_raw!r} "
+            "(must be a positive integer)\n"
+        )
         return 2
 
     llm_context: str | None = None

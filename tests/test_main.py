@@ -221,6 +221,18 @@ def test_invalid_log_level_returns_rc2_without_traceback(monkeypatch, capsys):
     assert "VERBOSE" in err
 
 
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_non_positive_projection_days_returns_rc2(monkeypatch, capsys, value):
+    monkeypatch.setenv("PROJECTION_DAYS", value)
+
+    rc = main(["--dry-run"])
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "invalid PROJECTION_DAYS" in err
+    assert "positive integer" in err
+
+
 def test_dry_run_does_not_write_news_seen_file(
     tmp_path, monkeypatch, requests_mock, capsys
 ):
