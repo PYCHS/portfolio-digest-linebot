@@ -33,10 +33,16 @@ def load_seen(path: Path) -> list[SeenEntry]:
         if not isinstance(data, dict):
             return []
         raw = data.get("entries", [])
+        if not isinstance(raw, list):
+            return []
         out: list[SeenEntry] = []
         for e in raw:
-            if isinstance(e, dict) and "title_norm" in e and "first_seen" in e:
-                out.append(SeenEntry(title_norm=e["title_norm"], first_seen=e["first_seen"]))
+            if not isinstance(e, dict):
+                continue
+            title_norm = e.get("title_norm")
+            first_seen = e.get("first_seen")
+            if isinstance(title_norm, str) and isinstance(first_seen, str):
+                out.append(SeenEntry(title_norm=title_norm, first_seen=first_seen))
         return out
     except (json.JSONDecodeError, OSError):
         return []

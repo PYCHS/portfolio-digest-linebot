@@ -101,6 +101,27 @@ def test_load_seen_recovers_from_non_object_json(tmp_path, content):
     assert load_seen(p) == []
 
 
+def test_load_seen_recovers_from_non_list_entries(tmp_path):
+    p = tmp_path / "seen.json"
+    p.write_text('{"entries": null}', encoding="utf-8")
+    assert load_seen(p) == []
+
+
+def test_load_seen_skips_entries_with_wrong_field_types(tmp_path):
+    p = tmp_path / "seen.json"
+    p.write_text(
+        '{"entries": ['
+        '{"title_norm": "valid", "first_seen": "2026-04-25T12:00:00+00:00"},'
+        '{"title_norm": 123, "first_seen": "2026-04-25T12:00:00+00:00"},'
+        '{"title_norm": "bad-date-type", "first_seen": 123}'
+        ']}',
+        encoding="utf-8",
+    )
+    assert load_seen(p) == [
+        SeenEntry(title_norm="valid", first_seen="2026-04-25T12:00:00+00:00")
+    ]
+
+
 def test_load_seen_skips_malformed_entries(tmp_path):
     p = tmp_path / "seen.json"
     p.write_text(
