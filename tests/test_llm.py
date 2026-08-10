@@ -230,3 +230,17 @@ def test_generate_greeting_api_error_falls_back(requests_mock):
     text, exc = generate_greeting(today, api_key="k")
     assert text == fallback_greeting(today)
     assert len(exc) == 1 and exc[0].startswith("llm greeting:")
+
+
+@pytest.mark.parametrize("invalid_text", [None, 123, {"value": "早安"}])
+def test_generate_greeting_non_string_text_falls_back(requests_mock, invalid_text):
+    requests_mock.post(
+        API_URL,
+        json={"content": [{"type": "text", "text": invalid_text}]},
+    )
+    today = date(2026, 8, 4)
+
+    text, exc = generate_greeting(today, api_key="k")
+
+    assert text == fallback_greeting(today)
+    assert exc == ["llm greeting: TypeError"]

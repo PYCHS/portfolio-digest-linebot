@@ -296,7 +296,10 @@ def generate_greeting(
             timeout=timeout,
         )
         resp.raise_for_status()
-        text = resp.json()["content"][0]["text"].strip()
+        text = resp.json()["content"][0]["text"]
+        if not isinstance(text, str):
+            raise TypeError("LLM greeting text must be a string")
+        text = text.strip()
         if not text:
             raise ValueError("empty greeting")
         return _ensure_quote(text, quote), []
