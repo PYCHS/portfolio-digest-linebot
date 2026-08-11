@@ -207,6 +207,23 @@ def test_rss_feeds_accepted_as_alias_for_rss(tmp_path, requests_mock):
     assert any("pfizer.rss" in r.url for r in requests_mock.request_history)
 
 
+def test_single_rss_url_string_is_treated_as_one_feed(tmp_path, requests_mock):
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: ACME\n"
+        "    rss: https://example.com/acme/press.rss\n",
+        encoding="utf-8",
+    )
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+
+    assert exc == []
+    assert [item.issuer_id for item in items] == ["ACME"]
+    assert len(requests_mock.request_history) == 1
+
+
 def test_query_accepted_as_alias_for_google_news_query(tmp_path, requests_mock):
     wl = tmp_path / "wl.yaml"
     wl.write_text(

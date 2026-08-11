@@ -165,7 +165,17 @@ def fetch_news(
             continue
 
         # `rss` is canonical; `rss_feeds` is accepted as an alias.
-        configured_urls = list(issuer.get("rss") or issuer.get("rss_feeds") or [])
+        raw_urls = issuer.get("rss") or issuer.get("rss_feeds") or []
+        if isinstance(raw_urls, str):
+            raw_urls = [raw_urls]
+        if isinstance(raw_urls, list):
+            configured_urls = [
+                url.strip()
+                for url in raw_urls
+                if isinstance(url, str) and url.strip()
+            ]
+        else:
+            configured_urls = []
         # `google_news_query` is canonical; `query` is accepted as an alias.
         gn_query = (
             issuer.get("google_news_query")
