@@ -120,6 +120,17 @@ def test_watchlist_malformed_returns_full_gap(tmp_path):
     assert exc and "malformed" in exc[0]
 
 
+@pytest.mark.parametrize("issuers", ["null", "ACME", "{id: ACME}"])
+def test_watchlist_rejects_non_list_issuers(tmp_path, issuers):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(f"issuers: {issuers}\n", encoding="utf-8")
+
+    items, exc = fetch_news(bad, tmp_path / "seen.json", now=NOW)
+
+    assert items is None
+    assert exc == ["news: watchlist malformed ('issuers' must be a list)"]
+
+
 def test_direct_feed_network_error_logged_and_run_does_not_crash(
     monkeypatch, requests_mock, tmp_path
 ):

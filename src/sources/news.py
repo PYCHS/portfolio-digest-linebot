@@ -133,6 +133,9 @@ def fetch_news(
 
     if not isinstance(wl, dict) or "issuers" not in wl:
         return None, ["news: watchlist malformed (missing 'issuers')"]
+    issuers = wl["issuers"]
+    if not isinstance(issuers, list):
+        return None, ["news: watchlist malformed ('issuers' must be a list)"]
 
     settings = wl.get("settings") or {}
     # `lookback_hours` is canonically under settings, but a top-level value is
@@ -151,7 +154,7 @@ def fetch_news(
 
     # ---- Planning pass: build per-issuer plans without doing any I/O. ----
     plans: list[dict[str, Any]] = []
-    for issuer in wl["issuers"]:
+    for issuer in issuers:
         if not isinstance(issuer, dict) or not issuer.get("enabled", True):
             continue
         # `id` is the canonical label; fall back to `name` so an issuer without
