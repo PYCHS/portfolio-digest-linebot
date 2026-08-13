@@ -55,6 +55,15 @@ def test_prune_old_skips_corrupt_timestamps():
     assert [e.title_norm for e in out] == ["good"]
 
 
+def test_prune_old_skips_timestamp_without_timezone():
+    good = SeenEntry(title_norm="good", first_seen=NOW.isoformat())
+    naive = SeenEntry(title_norm="naive", first_seen="2026-04-25T12:00:00")
+
+    out = prune_old([good, naive], now=NOW, days=3)
+
+    assert [e.title_norm for e in out] == ["good"]
+
+
 def test_save_and_load_round_trip(tmp_path):
     entries = [
         SeenEntry(title_norm="acme q1 results", first_seen=NOW.isoformat()),

@@ -67,6 +67,8 @@ def prune_old(entries: list[SeenEntry], now: datetime, days: int) -> list[SeenEn
             ts = datetime.fromisoformat(e.first_seen)
         except ValueError:
             continue
+        if ts.tzinfo is None:
+            continue
         if ts >= cutoff:
             out.append(e)
     return out
