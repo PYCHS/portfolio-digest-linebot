@@ -46,8 +46,8 @@ def _fetch(base_url: str, segment: str, timeout: float) -> tuple[Date, Decimal]:
         # cure — let them propagate to the caller's _FETCH_ERRORS handler.
         data = resp.json()
         rate = Decimal(str(data["rates"]["CHF"]))
-        if not rate.is_finite():
-            raise ValueError(f"non-finite rate: {data['rates']['CHF']!r}")
+        if not rate.is_finite() or rate <= 0:
+            raise ValueError(f"invalid rate: {data['rates']['CHF']!r}")
         return Date.fromisoformat(data["date"]), rate
     assert last_exc is not None  # loop above guarantees this
     raise last_exc

@@ -2,6 +2,7 @@ from datetime import date
 
 from decimal import Decimal
 
+import pytest
 import requests
 
 from src.sources import fx as fx_mod
@@ -110,6 +111,16 @@ def test_non_finite_rate_returns_full_gap(requests_mock):
     fx, exc = fetch_fx()
     assert fx is None
     assert exc and "ValueError" in exc[0]
+
+
+@pytest.mark.parametrize("rate", [0, -0.5])
+def test_non_positive_rate_returns_full_gap(requests_mock, rate):
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": rate}})
+
+    fx, exc = fetch_fx()
+
+    assert fx is None
+    assert exc == ["fx: latest fetch failed: ValueError"]
 
 
 def test_fetch_sends_user_agent_header(requests_mock):
