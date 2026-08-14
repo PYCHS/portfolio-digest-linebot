@@ -135,8 +135,11 @@ def analyze_news(
 
     by_index: dict[int, dict] = {}
     for item in raw_items:
-        if isinstance(item, dict) and isinstance(item.get("index"), int):
-            by_index[item["index"]] = item
+        if not isinstance(item, dict):
+            continue
+        index = item.get("index")
+        if type(index) is int and 0 <= index < len(news):
+            by_index[index] = item
 
     enriched: list[NewsItem] = []
     for i, n in enumerate(news):

@@ -78,6 +78,27 @@ def test_string_false_alert_does_not_trigger_false_alarm(requests_mock):
     assert out[1].is_alert is False
 
 
+def test_boolean_index_does_not_enrich_the_wrong_item(requests_mock):
+    body = _ok_response()
+    payload = json.loads(body["content"][0]["text"])
+    payload["items"] = [
+        {
+            "index": True,
+            "summary_zh": "不應套用",
+            "impact": "利空",
+            "reason_zh": "索引型別錯誤",
+            "alert": True,
+        }
+    ]
+    body["content"][0]["text"] = json.dumps(payload, ensure_ascii=False)
+    requests_mock.post(API_URL, json=body)
+
+    out, _, exc = analyze_news(ITEMS, api_key="k")
+
+    assert exc == []
+    assert out == ITEMS
+
+
 def test_code_fenced_json_is_tolerated(requests_mock):
     body = _ok_response()
     body["content"][0]["text"] = "```json\n" + body["content"][0]["text"] + "\n```"
