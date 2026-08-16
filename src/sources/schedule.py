@@ -172,7 +172,7 @@ def _load_recurring_events(
         if category not in CATEGORIES:
             exceptions.append(f"recurring row {n}: unknown category {raw[6]!r}")
             category = "other"
-        is_estimate = raw[7].strip() in {"1", "true", "yes"}
+        is_estimate = raw[7].strip().lower() in {"1", "true", "yes"}
         for d in dates:
             events.append(
                 CashflowEvent(

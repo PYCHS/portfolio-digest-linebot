@@ -80,6 +80,21 @@ def test_recurring_monthly_with_end_date(tmp_path):
     assert proj.net == {"USD": Decimal("3050.01")}
 
 
+def test_recurring_estimate_flag_is_case_insensitive(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "Estimated payout,USD,500.00,once:2026-08-08,,,insurance,TRUE\n",
+    )
+
+    proj, exc = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
+
+    assert exc == []
+    assert len(proj.events) == 1
+    assert proj.events[0].is_estimate is True
+
+
 def test_recurring_yearly_quarter_dates_and_once(tmp_path):
     recurring = _write(
         tmp_path,
