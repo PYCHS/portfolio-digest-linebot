@@ -191,6 +191,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+    group_id = os.environ.get("LINE_GROUP_ID", "")
+    if args.push and (not token or not group_id):
+        sys.stderr.write(
+            "error: --push requires LINE_CHANNEL_ACCESS_TOKEN and LINE_GROUP_ID in env.\n"
+        )
+        return 2
+
     llm_context: str | None = None
     context_path = Path(
         os.environ.get("LLM_CONTEXT_PATH", "private/llm_context.txt")
@@ -222,14 +230,6 @@ def main(argv: list[str] | None = None) -> int:
         # Default and --dry-run both stay safe: render to stdout, no push.
         sys.stdout.write(message)
         return 0
-
-    token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
-    group_id = os.environ.get("LINE_GROUP_ID", "")
-    if not token or not group_id:
-        sys.stderr.write(
-            "error: --push requires LINE_CHANNEL_ACCESS_TOKEN and LINE_GROUP_ID in env.\n"
-        )
-        return 2
 
     ok, err = push_message(text=message, group_id=group_id, access_token=token)
     if not ok:

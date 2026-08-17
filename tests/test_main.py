@@ -167,8 +167,10 @@ def test_push_without_required_env_returns_rc2(
     assert rc == 2
     err = capsys.readouterr().err
     assert "LINE_CHANNEL_ACCESS_TOKEN" in err
-    # No HTTP POST attempted
-    assert not any("line.me" in r.url for r in requests_mock.request_history)
+    # Invalid push configuration must fail before collectors run or dedup
+    # state is consumed; otherwise the next valid push can lose headlines.
+    assert requests_mock.request_history == []
+    assert not paths["seen"].exists()
 
 
 def test_push_failure_returns_rc3(
