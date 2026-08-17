@@ -131,6 +131,20 @@ def test_watchlist_rejects_non_list_issuers(tmp_path, issuers):
     assert exc == ["news: watchlist malformed ('issuers' must be a list)"]
 
 
+@pytest.mark.parametrize("settings", ["invalid", "[one, two]"])
+def test_watchlist_rejects_non_mapping_settings(tmp_path, settings):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(
+        f"issuers: []\nsettings: {settings}\n",
+        encoding="utf-8",
+    )
+
+    items, exc = fetch_news(bad, tmp_path / "seen.json", now=NOW)
+
+    assert items is None
+    assert exc == ["news: watchlist malformed ('settings' must be a mapping)"]
+
+
 def test_direct_feed_network_error_logged_and_run_does_not_crash(
     monkeypatch, requests_mock, tmp_path
 ):
