@@ -76,6 +76,42 @@ def test_alert_keyword_sets_is_alert(requests_mock, tmp_path):
     assert "downgrade" in acme.summary.lower()
 
 
+@pytest.mark.parametrize("keyword_scope", ["global", "issuer"])
+def test_single_alert_keyword_string_is_not_split_into_characters(
+    requests_mock, tmp_path, keyword_scope
+):
+    wl = tmp_path / "wl.yaml"
+    settings = (
+        "settings:\n  alert_keywords: downgrade\n"
+        if keyword_scope == "global"
+        else "settings: {}\n"
+    )
+    issuer_keyword = "    alert_keywords: downgrade\n" if keyword_scope == "issuer" else ""
+    wl.write_text(
+        settings
+        + "issuers:\n"
+        + "  - id: ACME\n"
+        + f"{issuer_keyword}"
+        + f"    rss: [{ACME_RSS_URL}]\n",
+        encoding="utf-8",
+    )
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<rss version="2.0"><channel><item>'
+        '<title>ACME opens new distribution center</title>'
+        '<link>https://acme.com/center</link>'
+        '<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate>'
+        '</item></channel></rss>'
+    )
+    requests_mock.get(ACME_RSS_URL, text=rss)
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+
+    assert exc == []
+    assert len(items) == 1
+    assert items[0].is_alert is False
+
+
 def test_max_items_per_issuer_limit(tmp_path, requests_mock):
     # Build a watchlist with max_items=1 and an RSS with 3 fresh items
     wl = tmp_path / "wl.yaml"

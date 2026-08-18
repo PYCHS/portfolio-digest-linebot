@@ -102,6 +102,16 @@ def _entry_source(entry: dict[str, Any], fallback_url: str) -> str:
     return netloc or fallback_url
 
 
+def _normalize_keywords(value: Any) -> list[str]:
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, list):
+        values = value
+    else:
+        return []
+    return [str(keyword).strip().lower() for keyword in values if str(keyword).strip()]
+
+
 def fetch_news(
     watchlist_path: Path,
     seen_path: Path,
@@ -151,7 +161,7 @@ def fetch_news(
         threshold = float(settings.get("similarity_threshold", 0.85))
     except (TypeError, ValueError):
         return None, ["news: watchlist malformed (settings must be numeric)"]
-    global_alert_keywords = [str(k).lower() for k in (settings.get("alert_keywords") or [])]
+    global_alert_keywords = _normalize_keywords(settings.get("alert_keywords"))
 
     seen = prune_old(load_seen(seen_path), now=now, days=dedup_days)
     cutoff = now - timedelta(hours=lookback_hours)
@@ -195,9 +205,7 @@ def fetch_news(
         # Per-issuer alert_keywords stack on top of the global list so a
         # watchlist can mix shared terms (e.g. "downgrade") with issuer-
         # specific ones (e.g. Chinese-language regulatory terms).
-        issuer_alert_keywords = [
-            str(k).lower() for k in (issuer.get("alert_keywords") or [])
-        ]
+        issuer_alert_keywords = _normalize_keywords(issuer.get("alert_keywords"))
         plans.append({
             "iid": iid,
             "configured_urls": configured_urls,
