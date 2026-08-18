@@ -142,10 +142,15 @@ def fetch_news(
         return None, ["news: watchlist malformed ('settings' must be a mapping)"]
     # `lookback_hours` is canonically under settings, but a top-level value is
     # accepted as an alias so a flat watchlist still works.
-    lookback_hours = int(settings.get("lookback_hours", wl.get("lookback_hours", 24)))
-    max_per_issuer = int(settings.get("max_items_per_issuer", 1))
-    dedup_days = int(settings.get("dedup_lookback_days", 3))
-    threshold = float(settings.get("similarity_threshold", 0.85))
+    try:
+        lookback_hours = int(
+            settings.get("lookback_hours", wl.get("lookback_hours", 24))
+        )
+        max_per_issuer = int(settings.get("max_items_per_issuer", 1))
+        dedup_days = int(settings.get("dedup_lookback_days", 3))
+        threshold = float(settings.get("similarity_threshold", 0.85))
+    except (TypeError, ValueError):
+        return None, ["news: watchlist malformed (settings must be numeric)"]
     global_alert_keywords = [str(k).lower() for k in (settings.get("alert_keywords") or [])]
 
     seen = prune_old(load_seen(seen_path), now=now, days=dedup_days)

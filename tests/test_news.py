@@ -145,6 +145,23 @@ def test_watchlist_rejects_non_mapping_settings(tmp_path, settings):
     assert exc == ["news: watchlist malformed ('settings' must be a mapping)"]
 
 
+@pytest.mark.parametrize(
+    "setting",
+    ["lookback_hours: nope", "similarity_threshold: []"],
+)
+def test_watchlist_rejects_non_numeric_settings(tmp_path, setting):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(
+        f"issuers: []\nsettings:\n  {setting}\n",
+        encoding="utf-8",
+    )
+
+    items, exc = fetch_news(bad, tmp_path / "seen.json", now=NOW)
+
+    assert items is None
+    assert exc == ["news: watchlist malformed (settings must be numeric)"]
+
+
 def test_direct_feed_network_error_logged_and_run_does_not_crash(
     monkeypatch, requests_mock, tmp_path
 ):
