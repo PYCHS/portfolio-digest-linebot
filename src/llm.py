@@ -65,6 +65,12 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
+def _optional_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value.strip() or None
+
+
 def analyze_news(
     news: list[NewsItem],
     *,
@@ -147,11 +153,11 @@ def analyze_news(
         if not item:
             enriched.append(n)
             continue
-        impact = str(item.get("impact") or "").strip()
+        impact = _optional_text(item.get("impact"))
         if impact not in VALID_IMPACTS:
             impact = "中性"
-        summary_zh = str(item.get("summary_zh") or "").strip() or None
-        reason_zh = str(item.get("reason_zh") or "").strip() or None
+        summary_zh = _optional_text(item.get("summary_zh"))
+        reason_zh = _optional_text(item.get("reason_zh"))
         enriched.append(
             dataclasses.replace(
                 n,

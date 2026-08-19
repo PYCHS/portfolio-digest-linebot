@@ -118,6 +118,29 @@ def test_invalid_impact_falls_back_to_neutral(requests_mock):
     assert out[0].impact == "中性"
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "attribute", "expected"),
+    [
+        ("summary_zh", ["not", "text"], "summary_zh", None),
+        ("reason_zh", {"reason": "not text"}, "impact_reason", None),
+        ("impact", 123, "impact", "中性"),
+    ],
+)
+def test_non_string_item_fields_are_not_rendered_as_python_values(
+    requests_mock, field, value, attribute, expected
+):
+    body = _ok_response()
+    payload = json.loads(body["content"][0]["text"])
+    payload["items"][0][field] = value
+    body["content"][0]["text"] = json.dumps(payload, ensure_ascii=False)
+    requests_mock.post(API_URL, json=body)
+
+    out, _, exc = analyze_news(ITEMS, api_key="k")
+
+    assert exc == []
+    assert getattr(out[0], attribute) == expected
+
+
 def test_api_error_returns_originals_with_exception(requests_mock):
     requests_mock.post(API_URL, status_code=500, json={"error": "boom"})
     out, overall, exc = analyze_news(ITEMS, api_key="k")
