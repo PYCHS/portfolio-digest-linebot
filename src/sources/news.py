@@ -4,6 +4,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+from math import isfinite
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, urlparse
@@ -161,6 +162,14 @@ def fetch_news(
         threshold = float(settings.get("similarity_threshold", 0.85))
     except (TypeError, ValueError):
         return None, ["news: watchlist malformed (settings must be numeric)"]
+    if (
+        lookback_hours <= 0
+        or max_per_issuer <= 0
+        or dedup_days < 0
+        or not isfinite(threshold)
+        or not 0 < threshold <= 1
+    ):
+        return None, ["news: watchlist malformed (settings out of range)"]
     global_alert_keywords = _normalize_keywords(settings.get("alert_keywords"))
 
     seen = prune_old(load_seen(seen_path), now=now, days=dedup_days)

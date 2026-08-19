@@ -198,6 +198,29 @@ def test_watchlist_rejects_non_numeric_settings(tmp_path, setting):
     assert exc == ["news: watchlist malformed (settings must be numeric)"]
 
 
+@pytest.mark.parametrize(
+    "setting",
+    [
+        "lookback_hours: 0",
+        "max_items_per_issuer: -1",
+        "dedup_lookback_days: -1",
+        "similarity_threshold: 1.1",
+        "similarity_threshold: .nan",
+    ],
+)
+def test_watchlist_rejects_out_of_range_settings(tmp_path, setting):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(
+        f"issuers: []\nsettings:\n  {setting}\n",
+        encoding="utf-8",
+    )
+
+    items, exc = fetch_news(bad, tmp_path / "seen.json", now=NOW)
+
+    assert items is None
+    assert exc == ["news: watchlist malformed (settings out of range)"]
+
+
 def test_direct_feed_network_error_logged_and_run_does_not_crash(
     monkeypatch, requests_mock, tmp_path
 ):
