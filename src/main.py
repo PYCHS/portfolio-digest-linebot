@@ -17,6 +17,7 @@ from .sources.fx import fetch_fx
 from .sources.ledger import load_ledger
 from .sources.news import fetch_news
 from .sources.positions import load_positions
+from .sources.prices import load_prices
 from .sources.schedule import project_cashflows
 
 DEFAULT_TZ = "Asia/Taipei"
@@ -35,6 +36,7 @@ def build_digest(
     seen_path: Path,
     ledger_path: Path,
     positions_path: Path,
+    prices_path: Path | None = None,
     persist_seen: bool = True,
     recurring_path: Path | None = None,
     projection_days: int = 60,
@@ -47,6 +49,9 @@ def build_digest(
     `now` is used for news (datetime; powers lookback_hours and dedup rolloff).
     `today = now.date()` is threaded into the ledger and positions collectors
     so they share the same Asia/Taipei calendar day.
+
+    `prices_path` feeds the M12 mark-to-market; a missing file leaves the
+    holdings unquoted rather than failing the snapshot.
 
     `persist_seen` is forwarded to the news collector. Set False for previews
     (--dry-run / default) so the preview doesn't consume dedup state.
@@ -111,8 +116,20 @@ def build_digest(
         cf = None
         exceptions.append(f"ledger: unexpected {type(e).__name__}")
 
+    # M12 — manually-maintained quotes. Failure here must not cost us the
+    # snapshot, so an empty map just renders the holdings as unquoted.
+    prices = None
     try:
-        snap, snap_exc = load_positions(positions_path, today=today)
+        prices, price_exc = load_prices(
+            prices_path if prices_path is not None else Path("private/prices.csv")
+        )
+        exceptions.extend(price_exc)
+    except Exception as e:
+        log.exception("prices collector raised")
+        exceptions.append(f"prices: unexpected {type(e).__name__}")
+
+    try:
+        snap, snap_exc = load_positions(positions_path, today=today, prices=prices)
         exceptions.extend(snap_exc)
     except Exception as e:
         log.exception("positions collector raised")
@@ -215,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
         seen_path=Path(os.environ.get("NEWS_SEEN_PATH", "private/.news_seen.json")),
         ledger_path=Path(os.environ.get("LEDGER_PATH", "private/ledger.csv")),
         positions_path=Path(os.environ.get("POSITIONS_PATH", "private/positions.csv")),
+        prices_path=Path(os.environ.get("PRICES_PATH", "private/prices.csv")),
         # Only --push commits dedup state. Previews (default and --dry-run)
         # leave seen.json untouched so re-running yields the same items.
         persist_seen=args.push,

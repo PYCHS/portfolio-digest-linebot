@@ -9,6 +9,7 @@ from src.models import (
     Coupon,
     DigestInput,
     FxResult,
+    HoldingPrice,
     NewsItem,
     Projection,
     Snapshot,
@@ -49,6 +50,25 @@ def _all_populated() -> DigestInput:
                 currency="USD",
             ),
             uncosted_issuers=[],
+            prices=[
+                HoldingPrice(
+                    name="Issuer Alpha",
+                    currency="USD",
+                    buy_price=Decimal("98.50"),
+                    current_price=Decimal("99.2500"),
+                    as_of=date(2026, 4, 24),
+                    change_pct=Decimal("0.76"),
+                    pnl=Decimal("75.00"),
+                ),
+                HoldingPrice(
+                    name="Issuer Beta",
+                    currency="USD",
+                    buy_price=Decimal("99.00"),
+                ),
+            ],
+            unrealized={"USD": Decimal("75.00")},
+            price_as_of_min=date(2026, 4, 24),
+            price_as_of_max=date(2026, 4, 24),
         ),
         cashflow=Cashflow(
             today={"USD": Decimal("55.00"), "CHF": Decimal("-12.50")},
@@ -345,13 +365,43 @@ def test_next_inflow_shown_even_when_horizon_is_empty():
             )
         )
     )
-    assert "- 未來 60 天：無" in out
     assert (
         "- 💵 下次進帳：2026-11-15 +6,157.00 USD 陶氏化學 配息 (還有 204 天)"
         in out
     )
-    # The bank-lag note is keyed off the inflow even with an empty horizon.
+    # Seven months out, the "money lands about a week later" note is noise.
+    assert "入到銀行帳戶" not in out
+
+
+def test_bank_lag_note_returns_when_the_coupon_is_days_away():
+    out = render(
+        _with_projection(
+            Projection(
+                events=[],
+                horizon_days=60,
+                net={},
+                next_inflow=CashflowEvent(
+                    date=date(2026, 4, 29),
+                    label="陶氏化學 配息",
+                    amount=Decimal("6157.00"),
+                    currency="USD",
+                    category="coupon",
+                ),
+                next_inflow_days=4,
+            )
+        )
+    )
     assert "- 註：債券配息通常於配息日後約一週入到銀行帳戶" in out
+
+
+def test_projection_calendar_is_not_rendered_at_all():
+    """The dated 60-day calendar was dropped: a dozen lines that hardly moved
+    day to day. Its events, nets and header must not come back."""
+    out = render(_all_populated())
+    assert "預估現金流" not in out
+    assert "Repo interest" not in out
+    assert "60 天淨額" not in out
+    assert "2026-06-04" not in out
 
 
 def test_next_inflow_today_reads_as_today_not_zero_days():
@@ -384,4 +434,167 @@ def test_no_next_inflow_line_when_nothing_comes_in():
         _with_projection(Projection(events=[], horizon_days=60, net={}))
     )
     assert "下次進帳" not in out
-    assert "- 未來 60 天：無" in out
+
+
+def _with_snapshot(snap: Snapshot) -> DigestInput:
+    base = _all_populated()
+    return DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=snap,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+        projected=base.projected,
+    )
+
+
+def _snapshot_with_prices(**kwargs) -> Snapshot:
+    base = _all_populated().snapshot
+    fields = {
+        "total_cost": base.total_cost,
+        "annual_coupon": base.annual_coupon,
+        "next_coupon": base.next_coupon,
+        "prices": base.prices,
+        "unrealized": base.unrealized,
+        "price_as_of_min": base.price_as_of_min,
+        "price_as_of_max": base.price_as_of_max,
+    }
+    fields.update(kwargs)
+    return Snapshot(**fields)
+
+
+def test_price_line_renders_direction_and_entry_price():
+    out = render(_all_populated())
+    assert "- Issuer Alpha：99.25 ▲ 0.76%（入手 98.50）" in out
+
+
+def test_price_below_entry_renders_a_down_arrow_and_positive_magnitude():
+    """The arrow carries the sign, so the number itself reads as a magnitude —
+    '▼ -1.21%' would say the move twice and invite a double negative."""
+    snap = _snapshot_with_prices(
+        prices=[
+            HoldingPrice(
+                name="陶氏化學",
+                currency="USD",
+                buy_price=Decimal("132.7100"),
+                current_price=Decimal("131.1000"),
+                as_of=date(2026, 4, 24),
+                change_pct=Decimal("-1.21"),
+                pnl=Decimal("-2109.10"),
+            )
+        ],
+        unrealized={"USD": Decimal("-2109.10")},
+    )
+    out = render(_with_snapshot(snap))
+    assert "- 陶氏化學：131.10 ▼ 1.21%（入手 132.71）" in out
+    assert "- 合計未實現：-2,109.10 USD" in out
+
+
+def test_unchanged_price_reads_as_flat():
+    snap = _snapshot_with_prices(
+        prices=[
+            HoldingPrice(
+                name="Issuer Alpha",
+                currency="USD",
+                buy_price=Decimal("98.50"),
+                current_price=Decimal("98.50"),
+                as_of=date(2026, 4, 24),
+                change_pct=Decimal("0.00"),
+                pnl=Decimal("0.00"),
+            )
+        ],
+        unrealized={"USD": Decimal("0.00")},
+    )
+    out = render(_with_snapshot(snap))
+    assert "- Issuer Alpha：98.50 持平（入手 98.50）" in out
+
+
+def test_three_decimal_quotes_are_not_rounded_away():
+    """Statements quote some of these to 3-4dp; rewriting 101.715 as 101.72
+    would break reconciliation against the broker's own numbers."""
+    snap = _snapshot_with_prices(
+        prices=[
+            HoldingPrice(
+                name="聯合健康",
+                currency="USD",
+                buy_price=Decimal("101.7150"),
+                current_price=Decimal("102.1250"),
+                as_of=date(2026, 4, 24),
+                change_pct=Decimal("0.40"),
+                pnl=Decimal("6150.00"),
+            )
+        ],
+        unrealized={"USD": Decimal("6150.00")},
+    )
+    out = render(_with_snapshot(snap))
+    assert "- 聯合健康：102.125 ▲ 0.40%（入手 101.715）" in out
+
+
+def test_stale_quote_file_says_how_long_it_has_been_sitting():
+    snap = _snapshot_with_prices(
+        price_as_of_min=date(2026, 3, 20),
+        price_as_of_max=date(2026, 3, 20),
+    )
+    out = render(_with_snapshot(snap))
+    assert "📈 持倉行情（報價日 2026-03-20，已 36 天未更新）" in out
+
+
+def test_mixed_quote_dates_render_as_a_span():
+    snap = _snapshot_with_prices(
+        price_as_of_min=date(2026, 4, 20),
+        price_as_of_max=date(2026, 4, 24),
+    )
+    out = render(_with_snapshot(snap))
+    assert "📈 持倉行情（報價日 2026-04-20 ~ 2026-04-24）" in out
+
+
+def test_unrealized_total_flags_partial_coverage():
+    """A total that silently skips unquoted holdings would overstate how much
+    of the book it covers."""
+    out = render(_all_populated())
+    assert "- 合計未實現：+75.00 USD（未含 1 檔無報價）" in out
+
+
+def test_unrealized_total_drops_the_caveat_when_everything_is_quoted():
+    snap = _snapshot_with_prices(prices=[_all_populated().snapshot.prices[0]])
+    out = render(_with_snapshot(snap))
+    assert "- 合計未實現：+75.00 USD" in out
+    assert "未含" not in out
+
+
+def test_missing_quote_file_is_a_reported_data_gap():
+    """Every bond unquoted means prices.csv is absent or empty — that has to
+    show up in Notes rather than looking like a flat market."""
+    snap = _snapshot_with_prices(
+        prices=[
+            HoldingPrice(
+                name="Issuer Alpha",
+                currency="USD",
+                buy_price=Decimal("98.50"),
+            )
+        ],
+        unrealized={},
+        price_as_of_min=None,
+        price_as_of_max=None,
+    )
+    out = render(_with_snapshot(snap))
+    assert "- Issuer Alpha：無報價（入手 98.50）" in out
+    assert "- 資料缺漏：報價" in out
+    assert "合計未實現" not in out
+
+
+def test_quote_without_a_known_entry_price_still_renders():
+    snap = _snapshot_with_prices(
+        prices=[
+            HoldingPrice(
+                name="Sample FCN",
+                currency="USD",
+                current_price=Decimal("100.0000"),
+                as_of=date(2026, 4, 24),
+            )
+        ],
+        unrealized={},
+    )
+    out = render(_with_snapshot(snap))
+    assert "- Sample FCN：100.00（入手價不明）" in out
