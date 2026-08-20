@@ -1,10 +1,71 @@
 from __future__ import annotations
 
+from datetime import date as Date
 from decimal import ROUND_HALF_UP, Decimal
 
-from .models import DigestInput
+from .models import DigestInput, HoldingPrice
 
 YIELD_QUANTUM = Decimal("0.01")
+# A quote file nobody has refreshed for over a week is still worth showing,
+# but it must not read as today's market — past this many days the header
+# says how long it has been sitting.
+PRICE_STALE_DAYS = 7
+# The "coupons reach the bank about a week later" note only earns its line in
+# the run-up to an actual payment, not on the other ~355 days of the year.
+BANK_LAG_NOTE_DAYS = 7
+
+
+def _fmt_price(p: Decimal) -> str:
+    """Render a clean price, keeping the precision the statement gave.
+
+    Quotes come in at two, three, or four decimals (94.67, 101.715); forcing
+    a fixed 2dp would silently rewrite the entry prices people reconcile
+    against.
+    """
+    out = f"{p:,.4f}"
+    while out.endswith("0") and len(out.split(".")[1]) > 2:
+        out = out[:-1]
+    return out
+
+
+def _fmt_change(change_pct: Decimal) -> str:
+    if change_pct > 0:
+        return f"▲ {change_pct:.2f}%"
+    if change_pct < 0:
+        return f"▼ {abs(change_pct):.2f}%"
+    return "持平"
+
+
+def _price_line(h: HoldingPrice) -> str:
+    if h.current_price is None:
+        tail = f"（入手 {_fmt_price(h.buy_price)}）" if h.buy_price is not None else ""
+        return f"- {h.name}：無報價{tail}"
+    if h.buy_price is None:
+        return f"- {h.name}：{_fmt_price(h.current_price)}（入手價不明）"
+    change = f" {_fmt_change(h.change_pct)}" if h.change_pct is not None else ""
+    return (
+        f"- {h.name}：{_fmt_price(h.current_price)}{change}"
+        f"（入手 {_fmt_price(h.buy_price)}）"
+    )
+
+
+def _price_header(d: DigestInput) -> str:
+    """Section title, annotated with the quote date(s) behind the numbers."""
+    title = "\U0001f4c8 持倉行情"
+    s = d.snapshot
+    if s is None or s.price_as_of_max is None:
+        return title
+    newest = s.price_as_of_max
+    if s.price_as_of_min is not None and s.price_as_of_min != newest:
+        span = f"{s.price_as_of_min.isoformat()} ~ {newest.isoformat()}"
+    else:
+        span = newest.isoformat()
+    try:
+        age = (Date.fromisoformat(d.date_str) - newest).days
+    except ValueError:
+        age = 0
+    stale = f"，已 {age} 天未更新" if age > PRICE_STALE_DAYS else ""
+    return f"{title}（報價日 {span}{stale}）"
 
 
 def render(d: DigestInput) -> str:
@@ -90,51 +151,46 @@ def render(d: DigestInput) -> str:
             )
         for issuer in s.uncosted_issuers:
             lines.append(f"- {issuer}：成本不明")
-    lines.append("")
-
-    lines.append("\U0001f4c5 預估現金流")
-    if d.projected is None:
-        lines.append("- 無資料")
-    else:
-        p = d.projected
-        has_coupon_inflow = False
-        if not p.events:
-            lines.append(f"- 未來 {p.horizon_days} 天：無")
-        else:
-            for e in p.events:
-                mark = "💸" if e.category == "interest" else ""
-                est = " (預估)" if e.is_estimate else ""
-                lines.append(
-                    f"- {e.date.isoformat()} {e.amount:+,.2f} {e.currency}"
-                    f" {mark}{e.label}{est}"
-                )
-                if e.category == "coupon" and e.amount > 0:
-                    has_coupon_inflow = True
-            net_parts = [
-                f"{p.net[ccy]:+,.2f} {ccy}" for ccy in sorted(p.net)
-            ]
-            lines.append(
-                f"- {p.horizon_days} 天淨額：{' | '.join(net_parts)}"
-            )
-        # Rendered even when the horizon is empty — that is exactly the case
-        # where "when does money next arrive?" needs answering.
-        if p.next_inflow is not None:
-            nx = p.next_inflow
+        # The dated projection calendar was dropped: a dozen lines that barely
+        # moved day to day. "When does money next arrive?" is the one question
+        # it actually answered, so that single line survives here.
+        if d.projected is not None and d.projected.next_inflow is not None:
+            nx = d.projected.next_inflow
             est = " (預估)" if nx.is_estimate else ""
-            if p.next_inflow_days is None:
+            days = d.projected.next_inflow_days
+            if days is None:
                 tail = ""
-            elif p.next_inflow_days == 0:
+            elif days == 0:
                 tail = " (今天)"
             else:
-                tail = f" (還有 {p.next_inflow_days} 天)"
+                tail = f" (還有 {days} 天)"
             lines.append(
                 f"- 💵 下次進帳：{nx.date.isoformat()} "
                 f"{nx.amount:+,.2f} {nx.currency} {nx.label}{est}{tail}"
             )
-            if nx.category == "coupon":
-                has_coupon_inflow = True
-        if has_coupon_inflow:
-            lines.append("- 註：債券配息通常於配息日後約一週入到銀行帳戶")
+            if (
+                nx.category == "coupon"
+                and days is not None
+                and days <= BANK_LAG_NOTE_DAYS
+            ):
+                lines.append("- 註：債券配息通常於配息日後約一週入到銀行帳戶")
+    lines.append("")
+
+    lines.append(_price_header(d))
+    if d.snapshot is None:
+        lines.append("- 無資料")
+    elif not d.snapshot.prices:
+        lines.append("- 無報價資料")
+    else:
+        s = d.snapshot
+        for h in s.prices:
+            lines.append(_price_line(h))
+        # Flagged rather than hidden: a total that quietly skips two unquoted
+        # bonds is worse than no total at all.
+        unquoted = sum(1 for h in s.prices if h.current_price is None)
+        suffix = f"（未含 {unquoted} 檔無報價）" if unquoted else ""
+        for ccy in sorted(s.unrealized):
+            lines.append(f"- 合計未實現：{s.unrealized[ccy]:+,.2f} {ccy}{suffix}")
     lines.append("")
 
     lines.append("\U0001f4b0 現金流（帳本）")
@@ -163,6 +219,8 @@ def render(d: DigestInput) -> str:
         gaps.append("帳本")
     if d.snapshot is None:
         gaps.append("持倉")
+    elif not any(h.current_price is not None for h in d.snapshot.prices):
+        gaps.append("報價")
     if d.projected is None:
         gaps.append("現金流預估")
 

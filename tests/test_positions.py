@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from src.models import PricePoint
 from src.sources.positions import load_positions
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -170,3 +171,109 @@ def test_malformed_semiannual_interest_logged_even_when_coupon_out_of_window(tmp
     assert snap.next_coupon is None
     # But the malformed semiannual_interest must still be flagged.
     assert any("bad semiannual_interest" in e for e in exc), exc
+
+
+def _quotes(**by_isin: str) -> dict[str, PricePoint]:
+    return {
+        isin: PricePoint(price=Decimal(price), as_of=date(2026, 4, 24))
+        for isin, price in by_isin.items()
+    }
+
+
+def test_quotes_join_on_isin_and_produce_change_and_pnl():
+    snap, exc = load_positions(
+        FIXTURES / "positions_basic.csv",
+        today=TODAY,
+        prices=_quotes(XS0000000001="99.2500", US0000000002="97.0000"),
+    )
+    assert exc == []
+    alpha, beta, gamma = snap.prices
+    assert alpha.name == "Issuer Alpha"
+    assert alpha.current_price == Decimal("99.2500")
+    # (99.25 - 98.50) / 98.50 = 0.7614%, on 10,000 face = 75.00
+    assert alpha.change_pct == Decimal("0.76")
+    assert alpha.pnl == Decimal("75.00")
+    # (97.00 - 99.00) / 99.00 = -2.0202%, on 5,000 face = -100.00
+    assert beta.change_pct == Decimal("-2.02")
+    assert beta.pnl == Decimal("-100.00")
+    assert snap.unrealized == {"USD": Decimal("-25.00")}
+    # Gamma has no quote, so it contributes nothing to the total.
+    assert gamma.pnl is None
+
+
+def test_quote_dates_are_reduced_to_a_span():
+    snap, _ = load_positions(
+        FIXTURES / "positions_basic.csv",
+        today=TODAY,
+        prices={
+            "XS0000000001": PricePoint(Decimal("99.25"), date(2026, 4, 24)),
+            "US0000000002": PricePoint(Decimal("97.00"), date(2026, 4, 20)),
+        },
+    )
+    assert snap.price_as_of_min == date(2026, 4, 20)
+    assert snap.price_as_of_max == date(2026, 4, 24)
+
+
+def test_bond_without_a_quote_still_gets_a_row():
+    """Silence about a missing quote reads as 'no change'. A bond the file
+    forgot has to stay visible in the section."""
+    snap, _ = load_positions(
+        FIXTURES / "positions_basic.csv",
+        today=TODAY,
+        prices=_quotes(XS0000000001="99.2500"),
+    )
+    assert [h.name for h in snap.prices] == [
+        "Issuer Alpha",
+        "Issuer Beta",
+        "Issuer Gamma",
+    ]
+    beta = snap.prices[1]
+    assert beta.current_price is None
+    assert beta.buy_price == Decimal("99.00")
+    assert beta.change_pct is None
+    assert snap.unrealized == {"USD": Decimal("75.00")}
+
+
+def test_unquoted_non_bond_rows_stay_out_of_the_section():
+    """A structured note has no market quote to be missing, so listing it as
+    '無報價' every morning would be permanent noise."""
+    snap, _ = load_positions(
+        FIXTURES / "positions_with_uncosted.csv",
+        today=TODAY,
+        prices=_quotes(XS0000000001="99.2500"),
+    )
+    assert [h.name for h in snap.prices] == ["Issuer Alpha"]
+
+
+def test_no_price_map_leaves_every_bond_unquoted():
+    snap, exc = load_positions(FIXTURES / "positions_basic.csv", today=TODAY)
+    assert exc == []
+    assert [h.current_price for h in snap.prices] == [None, None, None]
+    assert snap.unrealized == {}
+    assert snap.price_as_of_max is None
+
+
+def test_pnl_is_summed_in_each_position_currency():
+    snap, _ = load_positions(
+        FIXTURES / "positions_with_currency_column.csv",
+        today=TODAY,
+        prices=_quotes(XS0000000001="99.5000", XS0000000002="98.0000"),
+    )
+    # USD leg: +1.00 point on 10,000 face; CHF leg: -1.00 on 5,000.
+    assert snap.unrealized == {
+        "USD": Decimal("100.00"),
+        "CHF": Decimal("-50.00"),
+    }
+
+
+def test_quote_without_a_buy_price_yields_no_change_or_pnl():
+    snap, _ = load_positions(
+        FIXTURES / "positions_bad_data.csv",
+        today=TODAY,
+        prices=_quotes(US0000000002="99.5000"),
+    )
+    beta = next(h for h in snap.prices if h.name == "Issuer Beta")
+    assert beta.current_price == Decimal("99.5000")
+    assert beta.buy_price is None
+    assert beta.change_pct is None
+    assert beta.pnl is None

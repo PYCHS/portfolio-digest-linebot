@@ -44,6 +44,7 @@ jobs:
           WATCHLIST_YAML_B64: ${{ secrets.WATCHLIST_YAML_B64 }}
           LEDGER_CSV_B64: ${{ secrets.LEDGER_CSV_B64 }}
           POSITIONS_CSV_B64: ${{ secrets.POSITIONS_CSV_B64 }}
+          PRICES_CSV_B64: ${{ secrets.PRICES_CSV_B64 }}
           RECURRING_CSV_B64: ${{ secrets.RECURRING_CSV_B64 }}
           LLM_CONTEXT_TXT_B64: ${{ secrets.LLM_CONTEXT_TXT_B64 }}
         run: |
@@ -64,6 +65,12 @@ jobs:
             printf '%s' "$POSITIONS_CSV_B64" | base64 -d > private/positions.csv
           else
             cp data/positions.example.csv private/positions.csv
+          fi
+          # Quotes are optional and deliberately have no example fallback:
+          # seeding a real push with sample prices would put fabricated
+          # marks in front of the family. Absent file = holdings unquoted.
+          if [ -n "${PRICES_CSV_B64:-}" ]; then
+            printf '%s' "$PRICES_CSV_B64" | base64 -d > private/prices.csv
           fi
           # Recurring cashflow schedule and LLM context are optional; when
           # the secrets are unset the files are simply absent and the digest
