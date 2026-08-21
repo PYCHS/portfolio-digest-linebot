@@ -64,8 +64,13 @@ def _price_header(d: DigestInput) -> str:
         age = (Date.fromisoformat(d.date_str) - newest).days
     except ValueError:
         age = 0
-    stale = f"，已 {age} 天未更新" if age > PRICE_STALE_DAYS else ""
-    return f"{title}（報價日 {span}{stale}）"
+    if age < 0:
+        freshness = f"，日期異常：晚於摘要 {abs(age)} 天"
+    elif age > PRICE_STALE_DAYS:
+        freshness = f"，已 {age} 天未更新"
+    else:
+        freshness = ""
+    return f"{title}（報價日 {span}{freshness}）"
 
 
 def render(d: DigestInput) -> str:

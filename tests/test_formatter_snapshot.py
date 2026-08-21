@@ -540,6 +540,15 @@ def test_stale_quote_file_says_how_long_it_has_been_sitting():
     assert "📈 持倉行情（報價日 2026-03-20，已 36 天未更新）" in out
 
 
+def test_future_quote_date_is_flagged_as_anomaly():
+    snap = _snapshot_with_prices(
+        price_as_of_min=date(2026, 4, 27),
+        price_as_of_max=date(2026, 4, 27),
+    )
+    out = render(_with_snapshot(snap))
+    assert "📈 持倉行情（報價日 2026-04-27，日期異常：晚於摘要 2 天）" in out
+
+
 def test_mixed_quote_dates_render_as_a_span():
     snap = _snapshot_with_prices(
         price_as_of_min=date(2026, 4, 20),
