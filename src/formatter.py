@@ -53,8 +53,13 @@ def _price_header(d: DigestInput) -> str:
     """Section title, annotated with the quote date(s) behind the numbers."""
     title = "\U0001f4c8 持倉行情"
     s = d.snapshot
-    if s is None or s.price_as_of_max is None:
+    if s is None:
         return title
+    undated = sum(
+        1 for h in s.prices if h.current_price is not None and h.as_of is None
+    )
+    if s.price_as_of_max is None:
+        return f"{title}（{undated} 檔報價日期不明）" if undated else title
     newest = s.price_as_of_max
     if s.price_as_of_min is not None and s.price_as_of_min != newest:
         span = f"{s.price_as_of_min.isoformat()} ~ {newest.isoformat()}"
@@ -70,7 +75,8 @@ def _price_header(d: DigestInput) -> str:
         freshness = f"，已 {age} 天未更新"
     else:
         freshness = ""
-    return f"{title}（報價日 {span}{freshness}）"
+    undated_note = f"，另有 {undated} 檔日期不明" if undated else ""
+    return f"{title}（報價日 {span}{freshness}{undated_note}）"
 
 
 def render(d: DigestInput) -> str:

@@ -558,6 +558,36 @@ def test_mixed_quote_dates_render_as_a_span():
     assert "📈 持倉行情（報價日 2026-04-20 ~ 2026-04-24）" in out
 
 
+def test_undated_quote_is_disclosed_alongside_dated_quotes():
+    dated = _all_populated().snapshot.prices[0]
+    undated = HoldingPrice(
+        name="Issuer Beta",
+        currency="USD",
+        buy_price=Decimal("99.00"),
+        current_price=Decimal("100.00"),
+    )
+    snap = _snapshot_with_prices(prices=[dated, undated])
+    out = render(_with_snapshot(snap))
+    assert "📈 持倉行情（報價日 2026-04-24，另有 1 檔日期不明）" in out
+
+
+def test_all_undated_quotes_are_disclosed_in_header():
+    snap = _snapshot_with_prices(
+        prices=[
+            HoldingPrice(
+                name="Issuer Alpha",
+                currency="USD",
+                buy_price=Decimal("98.50"),
+                current_price=Decimal("99.25"),
+            )
+        ],
+        price_as_of_min=None,
+        price_as_of_max=None,
+    )
+    out = render(_with_snapshot(snap))
+    assert "📈 持倉行情（1 檔報價日期不明）" in out
+
+
 def test_unrealized_total_flags_partial_coverage():
     """A total that silently skips unquoted holdings would overstate how much
     of the book it covers."""
