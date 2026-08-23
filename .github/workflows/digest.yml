@@ -18,6 +18,9 @@ on:
           - dry-run
           - push
 
+permissions:
+  contents: read
+
 jobs:
   digest:
     runs-on: ubuntu-latest

@@ -14,16 +14,27 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "digest.yml"
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 SH_SCRIPT = ROOT / "scripts" / "run_digest.sh"
 PS_SCRIPT = ROOT / "scripts" / "run_digest.ps1"
 
 
-def _load_workflow() -> dict:
-    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+def _load_yaml(path: Path) -> dict:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     # PyYAML parses the bare key `on:` as the boolean True under YAML 1.1.
     if True in data and "on" not in data:
         data["on"] = data.pop(True)
     return data
+
+
+def _load_workflow() -> dict:
+    return _load_yaml(WORKFLOW)
+
+
+def test_workflows_use_read_only_repository_permissions():
+    for path in (CI_WORKFLOW, WORKFLOW):
+        data = _load_yaml(path)
+        assert data.get("permissions") == {"contents": "read"}, path.name
 
 
 def test_digest_workflow_has_daily_cron_and_manual_dispatch():
