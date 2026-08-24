@@ -64,6 +64,18 @@ def test_prune_old_skips_timestamp_without_timezone():
     assert [e.title_norm for e in out] == ["good"]
 
 
+def test_prune_old_skips_future_timestamps():
+    good = SeenEntry(title_norm="good", first_seen=NOW.isoformat())
+    future = SeenEntry(
+        title_norm="future",
+        first_seen=(NOW + timedelta(days=1)).isoformat(),
+    )
+
+    out = prune_old([good, future], now=NOW, days=3)
+
+    assert [e.title_norm for e in out] == ["good"]
+
+
 def test_save_and_load_round_trip(tmp_path):
     entries = [
         SeenEntry(title_norm="acme q1 results", first_seen=NOW.isoformat()),

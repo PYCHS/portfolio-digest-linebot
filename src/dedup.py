@@ -69,7 +69,10 @@ def prune_old(entries: list[SeenEntry], now: datetime, days: int) -> list[SeenEn
             continue
         if ts.tzinfo is None:
             continue
-        if ts >= cutoff:
+        # A future timestamp can be left behind by a bad system clock. Keeping
+        # it would suppress matching headlines until that date plus the whole
+        # dedup window, so treat it as corrupt state rather than fresh state.
+        if cutoff <= ts <= now:
             out.append(e)
     return out
 
