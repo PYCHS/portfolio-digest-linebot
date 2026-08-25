@@ -24,6 +24,20 @@ DEFAULT_TZ = "Asia/Taipei"
 log = logging.getLogger(__name__)
 
 
+def _restore_file(path: Path, *, existed: bool, content: bytes) -> None:
+    """Restore a file snapshot atomically after a failed delivery."""
+    if not existed:
+        path.unlink(missing_ok=True)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.rollback.tmp")
+    try:
+        temp_path.write_bytes(content)
+        temp_path.replace(path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 def _now_in_tz(tz_name: str) -> datetime:
     """Return current wall-clock time in the given IANA timezone."""
     return datetime.now(tz=ZoneInfo(tz_name))
@@ -226,10 +240,21 @@ def main(argv: list[str] | None = None) -> int:
         except OSError:
             llm_context = None
 
+    seen_path = Path(os.environ.get("NEWS_SEEN_PATH", "private/.news_seen.json"))
+    seen_snapshot: tuple[bool, bytes] | None = None
+    if args.push:
+        try:
+            existed = seen_path.exists()
+            seen_snapshot = (existed, seen_path.read_bytes() if existed else b"")
+        except OSError:
+            # fetch_news already handles an unreadable state file gracefully;
+            # continue, but there is no safe snapshot available to restore.
+            seen_snapshot = None
+
     digest = build_digest(
         now=now,
         watchlist_path=Path(os.environ.get("WATCHLIST_PATH", "private/watchlist.yaml")),
-        seen_path=Path(os.environ.get("NEWS_SEEN_PATH", "private/.news_seen.json")),
+        seen_path=seen_path,
         ledger_path=Path(os.environ.get("LEDGER_PATH", "private/ledger.csv")),
         positions_path=Path(os.environ.get("POSITIONS_PATH", "private/positions.csv")),
         prices_path=Path(os.environ.get("PRICES_PATH", "private/prices.csv")),
@@ -251,6 +276,15 @@ def main(argv: list[str] | None = None) -> int:
 
     ok, err = push_message(text=message, group_id=group_id, access_token=token)
     if not ok:
+        if seen_snapshot is not None:
+            try:
+                _restore_file(
+                    seen_path,
+                    existed=seen_snapshot[0],
+                    content=seen_snapshot[1],
+                )
+            except OSError:
+                log.exception("failed to restore news dedup state after push failure")
         sys.stderr.write(f"error: LINE push failed: {err}\n")
         return 3
     sys.stdout.write(message)

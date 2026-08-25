@@ -181,6 +181,11 @@ def test_push_failure_returns_rc3(
     _setup_http(requests_mock)
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
     monkeypatch.setenv("LINE_GROUP_ID", "C-test-group")
+    original_seen = (
+        '{"entries": [{"title_norm": "older headline", '
+        '"first_seen": "2026-04-25T09:00:00+08:00"}]}\n'
+    )
+    paths["seen"].write_text(original_seen, encoding="utf-8")
     requests_mock.post(
         "https://api.line.me/v2/bot/message/push",
         status_code=401,
@@ -192,6 +197,7 @@ def test_push_failure_returns_rc3(
     err = capsys.readouterr().err
     assert "LINE push failed" in err
     assert "401" in err
+    assert paths["seen"].read_text(encoding="utf-8") == original_seen
 
 
 def test_push_and_dry_run_are_mutually_exclusive(capsys):
