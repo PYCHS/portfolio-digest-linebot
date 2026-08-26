@@ -10,6 +10,14 @@ from src.sources.fx import fetch_fx
 
 LATEST = "https://api.frankfurter.app/latest"
 PRIOR = "https://api.frankfurter.app/2026-04-24"
+TWD = "https://open.er-api.com/v6/latest/USD"
+
+
+@pytest.fixture(autouse=True)
+def _twd_available(requests_mock):
+    """USD/TWD comes from a second provider, so every fetch_fx call makes
+    this request too. Tests that care about it override the mock."""
+    requests_mock.get(TWD, json={"rates": {"TWD": 31.8477}})
 
 
 def test_happy_path_full_result(requests_mock):
@@ -174,3 +182,44 @@ def test_data_error_is_not_retried(monkeypatch, requests_mock):
     assert fx is None
     latest_hits = [r for r in requests_mock.request_history if r.path == "/latest"]
     assert len(latest_hits) == 1, f"expected no retry on data error, got {len(latest_hits)}"
+
+
+def test_twd_rate_is_fetched_from_the_second_provider(requests_mock):
+    """The ECB reference rates behind Frankfurter have no TWD, so the Taiwan
+    dollar has to come from somewhere else entirely."""
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    fx, exc = fetch_fx()
+    assert exc == []
+    assert fx.usd_twd == Decimal("31.8477")
+
+
+def test_twd_provider_failure_does_not_cost_us_the_franc(requests_mock):
+    """Losing one currency must not blank the whole FX section."""
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    requests_mock.get(TWD, status_code=503)
+    fx, exc = fetch_fx()
+    assert fx is not None
+    assert fx.usd_chf == Decimal("0.9123")
+    assert fx.usd_twd is None
+    assert exc == ["fx: TWD fetch failed: HTTPError"]
+
+
+def test_twd_missing_from_the_payload_is_a_soft_failure(requests_mock):
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    requests_mock.get(TWD, json={"rates": {"JPY": 150.0}})
+    fx, exc = fetch_fx()
+    assert fx.usd_twd is None
+    assert exc == ["fx: TWD fetch failed: KeyError"]
+
+
+@pytest.mark.parametrize("bad", [0, -3.2, "Infinity", "N/A"])
+def test_unusable_twd_rate_is_dropped_rather_than_rendered(requests_mock, bad):
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    requests_mock.get(TWD, json={"rates": {"TWD": bad}})
+    fx, exc = fetch_fx()
+    assert fx.usd_twd is None
+    assert exc and exc[0].startswith("fx: TWD fetch failed")

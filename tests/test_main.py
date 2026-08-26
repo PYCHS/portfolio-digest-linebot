@@ -54,6 +54,9 @@ def _setup_env(monkeypatch, paths: dict[str, Path]) -> None:
     monkeypatch.setenv("WATCHLIST_PATH", str(paths["watchlist"]))
     monkeypatch.setenv("NEWS_SEEN_PATH", str(paths["seen"]))
     monkeypatch.setenv("TIMEZONE", "Asia/Taipei")
+    # Scraping live quote sources is not what these CLI tests exercise;
+    # the collector has its own suite. Individual tests re-enable it.
+    monkeypatch.setenv("FETCH_QUOTES", "0")
     monkeypatch.setattr(main_module, "_now_in_tz", lambda _tz: NOW)
 
 
@@ -65,6 +68,10 @@ def _setup_http(requests_mock) -> None:
     requests_mock.get(
         "https://api.frankfurter.app/2026-04-24",
         json={"date": "2026-04-24", "rates": {"CHF": 0.9134}},
+    )
+    requests_mock.get(
+        "https://open.er-api.com/v6/latest/USD",
+        json={"rates": {"TWD": 31.8477}},
     )
     requests_mock.get(
         "https://example.com/acme.rss",
@@ -293,3 +300,84 @@ def test_dry_run_without_ledger_renders_zero_cashflow_without_notes_noise(
     assert "餘額：USD 0.00 | CHF 0.00" in out
     assert "ledger: file not found" not in out
     assert "資料缺漏：帳本" not in out
+
+
+PUBLIC_DOW_HTML = (
+    Path(__file__).parent / "fixtures" / "public_bond_dow.html"
+).read_text(encoding="utf-8")
+
+DOW_POSITION = (
+    "bond,Dow,US260543BY86,,131000,9.40,2039-05-15,"
+    "132.7100,173850.10,12314.00,6157.00,5.82,7.0831,5/15;11/15\n"
+)
+
+
+def _quotable_files(tmp_path: Path, monkeypatch, price_row: str) -> None:
+    """Point the CLI at a one-bond book plus a prices.csv fallback."""
+    positions = tmp_path / "positions_dow.csv"
+    positions.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        + DOW_POSITION,
+        encoding="utf-8",
+    )
+    prices = tmp_path / "prices.csv"
+    prices.write_text("isin_or_code,price,as_of\n" + price_row, encoding="utf-8")
+    monkeypatch.setenv("POSITIONS_PATH", str(positions))
+    monkeypatch.setenv("PRICES_PATH", str(prices))
+    monkeypatch.setenv("FETCH_QUOTES", "1")
+
+
+def test_live_quote_supersedes_the_stored_price(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    _quotable_files(tmp_path, monkeypatch, "US260543BY86,120.0000,2026-04-01\n")
+    requests_mock.get(
+        "https://public.com/bonds/260543by8", text=PUBLIC_DOW_HTML
+    )
+
+    assert main(["--dry-run"]) == 0
+    out = capsys.readouterr().out
+    # Today's 130.69 wins over the stale 120.00 sitting in the file, and the
+    # header dates the section to the run rather than to the file.
+    assert "130.69" in out
+    assert "120.00" not in out
+    assert "報價日 2026-04-25" in out
+
+
+def test_failed_fetch_falls_back_to_the_file_with_its_older_date(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    """The whole point of keeping prices.csv: a broken scrape degrades to
+    stale-but-labelled, never to a blank section or an invented number."""
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    _quotable_files(tmp_path, monkeypatch, "US260543BY86,120.0000,2026-04-01\n")
+    requests_mock.get("https://public.com/bonds/260543by8", status_code=500)
+
+    assert main(["--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "120.00" in out
+    # 2026-04-01 against a 2026-04-25 digest is well past the stale threshold.
+    assert "報價日 2026-04-01，已 24 天未更新" in out
+    assert "quotes US260543BY86" in out
+
+
+def test_quotes_can_be_switched_off_entirely(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    _quotable_files(tmp_path, monkeypatch, "US260543BY86,120.0000,2026-04-01\n")
+    monkeypatch.setenv("FETCH_QUOTES", "0")
+
+    assert main(["--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "120.00" in out
+    assert not any("public.com" in r.url for r in requests_mock.request_history)

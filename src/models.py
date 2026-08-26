@@ -24,6 +24,10 @@ class FxResult:
     usd_chf: Decimal
     chf_usd: Decimal
     usd_chf_dod_pct: Decimal | None
+    # USD/TWD comes from a second provider: Frankfurter is ECB reference
+    # rates, and the ECB does not publish the Taiwan dollar. That provider
+    # has no history endpoint, so this rate carries no day-over-day figure.
+    usd_twd: Decimal | None = None
     # Calendar date the latest rate is observed for. Frankfurter publishes
     # weekday rates around 15:00 CET, so a digest fired earlier than that
     # (or on a weekend / holiday) gets a rate dated to a prior business day.

@@ -12,12 +12,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .formatter import render
 from .line_client import push_message
 from .llm import DEFAULT_MODEL, analyze_news, fallback_greeting, generate_greeting
-from .models import DigestInput
+from .models import DigestInput, PricePoint
 from .sources.fx import fetch_fx
 from .sources.ledger import load_ledger
 from .sources.news import fetch_news
 from .sources.positions import load_positions
 from .sources.prices import load_prices
+from .sources.quotes import fetch_quotes
 from .sources.schedule import project_cashflows
 
 DEFAULT_TZ = "Asia/Taipei"
@@ -51,6 +52,7 @@ def build_digest(
     ledger_path: Path,
     positions_path: Path,
     prices_path: Path | None = None,
+    fetch_live_quotes: bool = True,
     persist_seen: bool = True,
     recurring_path: Path | None = None,
     projection_days: int = 60,
@@ -64,8 +66,10 @@ def build_digest(
     `today = now.date()` is threaded into the ledger and positions collectors
     so they share the same Asia/Taipei calendar day.
 
-    `prices_path` feeds the M12 mark-to-market; a missing file leaves the
-    holdings unquoted rather than failing the snapshot.
+    `prices_path` feeds the mark-to-market. Live quotes (M13) are layered
+    over it: whatever the sources return wins, and anything they miss keeps
+    the stored value along with the older date that goes with it, so a
+    broken scrape degrades to stale-but-labelled rather than to silence.
 
     `persist_seen` is forwarded to the news collector. Set False for previews
     (--dry-run / default) so the preview doesn't consume dedup state.
@@ -132,7 +136,7 @@ def build_digest(
 
     # M12 — manually-maintained quotes. Failure here must not cost us the
     # snapshot, so an empty map just renders the holdings as unquoted.
-    prices = None
+    prices: dict[str, PricePoint] | None = None
     try:
         prices, price_exc = load_prices(
             prices_path if prices_path is not None else Path("private/prices.csv")
@@ -141,6 +145,16 @@ def build_digest(
     except Exception as e:
         log.exception("prices collector raised")
         exceptions.append(f"prices: unexpected {type(e).__name__}")
+
+    if fetch_live_quotes:
+        try:
+            live, quote_exc = fetch_quotes(positions_path, today)
+            exceptions.extend(quote_exc)
+            if live:
+                prices = {**(prices or {}), **live}
+        except Exception as e:
+            log.exception("quotes collector raised")
+            exceptions.append(f"quotes: unexpected {type(e).__name__}")
 
     try:
         snap, snap_exc = load_positions(positions_path, today=today, prices=prices)
@@ -258,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
         ledger_path=Path(os.environ.get("LEDGER_PATH", "private/ledger.csv")),
         positions_path=Path(os.environ.get("POSITIONS_PATH", "private/positions.csv")),
         prices_path=Path(os.environ.get("PRICES_PATH", "private/prices.csv")),
+        fetch_live_quotes=os.environ.get("FETCH_QUOTES", "1") != "0",
         # Only --push commits dedup state. Previews (default and --dry-run)
         # leave seen.json untouched so re-running yields the same items.
         persist_seen=args.push,

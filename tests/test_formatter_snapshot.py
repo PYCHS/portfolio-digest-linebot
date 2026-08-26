@@ -551,11 +551,11 @@ def test_future_quote_date_is_flagged_as_anomaly():
 
 def test_mixed_quote_dates_render_as_a_span():
     snap = _snapshot_with_prices(
-        price_as_of_min=date(2026, 4, 20),
+        price_as_of_min=date(2026, 4, 22),
         price_as_of_max=date(2026, 4, 24),
     )
     out = render(_with_snapshot(snap))
-    assert "📈 持倉行情（報價日 2026-04-20 ~ 2026-04-24）" in out
+    assert "📈 持倉行情（報價日 2026-04-22 ~ 2026-04-24）" in out
 
 
 def test_mixed_quote_dates_flag_the_oldest_stale_quote():
@@ -649,3 +649,55 @@ def test_quote_without_a_known_entry_price_still_renders():
     )
     out = render(_with_snapshot(snap))
     assert "- Sample FCN：100.00（入手價不明）" in out
+
+
+def test_twd_line_renders_after_the_franc_pair():
+    base = _all_populated()
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=FxResult(
+            usd_chf=Decimal("0.9123"),
+            chf_usd=Decimal("1.0961"),
+            usd_chf_dod_pct=Decimal("-0.12"),
+            usd_twd=Decimal("31.8477"),
+        ),
+        snapshot=base.snapshot,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+        projected=base.projected,
+    )
+    out = render(d)
+    assert "- USD/TWD: 31.8477" in out
+    assert out.index("CHF/USD") < out.index("USD/TWD")
+
+
+def test_twd_line_is_omitted_when_the_rate_is_unavailable():
+    """No DoD% is available for TWD, so a placeholder row with a blank change
+    would read as 'unchanged' rather than 'missing'. Drop the line instead."""
+    out = render(_all_populated())
+    assert "USD/TWD" not in out
+    assert "USD/CHF" in out
+
+
+def test_a_long_weekend_behind_the_oldest_source_is_not_called_stale():
+    """Staleness is judged from the oldest quote, and one of the sources is a
+    bank table that does not move at weekends. A Friday quote read on the
+    Tuesday after a long weekend is four days old and entirely healthy —
+    crying stale every Tuesday would train everyone to ignore the warning."""
+    snap = _snapshot_with_prices(
+        price_as_of_min=date(2026, 4, 21),  # four days before the digest
+        price_as_of_max=date(2026, 4, 25),
+    )
+    out = render(_with_snapshot(snap))
+    assert "📈 持倉行情（報價日 2026-04-21 ~ 2026-04-25）" in out
+    assert "未更新" not in out
+
+
+def test_one_day_past_the_weekend_allowance_does_flag():
+    snap = _snapshot_with_prices(
+        price_as_of_min=date(2026, 4, 20),  # five days
+        price_as_of_max=date(2026, 4, 25),
+    )
+    out = render(_with_snapshot(snap))
+    assert "最舊已 5 天未更新" in out

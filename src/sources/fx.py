@@ -9,6 +9,10 @@ import requests
 from ..models import FxResult
 
 DEFAULT_BASE_URL = "https://api.frankfurter.app"
+# Frankfurter republishes ECB reference rates, whose 30-currency list
+# has no TWD, so the Taiwan dollar needs a second provider. This one is
+# free and keyless but offers no historical endpoint — hence no DoD%.
+DEFAULT_TWD_URL = "https://open.er-api.com/v6/latest/USD"
 DEFAULT_TIMEOUT = 5.0
 RATE_QUANTUM = Decimal("0.0001")
 PCT_QUANTUM = Decimal("0.01")
@@ -53,16 +57,28 @@ def _fetch(base_url: str, segment: str, timeout: float) -> tuple[Date, Decimal]:
     raise last_exc
 
 
+def _fetch_twd(url: str, timeout: float) -> Decimal:
+    resp = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
+    resp.raise_for_status()
+    rate = Decimal(str(resp.json()["rates"]["TWD"]))
+    if not rate.is_finite() or rate <= 0:
+        raise ValueError(f"invalid TWD rate: {rate!r}")
+    return rate
+
+
 def fetch_fx(
     *,
     base_url: str = DEFAULT_BASE_URL,
+    twd_url: str = DEFAULT_TWD_URL,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> tuple[FxResult | None, list[str]]:
     """Fetch USD/CHF rate from Frankfurter, derive CHF/USD and DoD%.
 
     Returns (FxResult, []) on success. The DoD% may be None when no prior
     business-day rate is available; the prior-day fetch failing softly is
-    not treated as a full failure of the FX source.
+    not treated as a full failure of the FX source. USD/TWD comes from a
+    separate provider and fails softly the same way — losing the Taiwan
+    dollar must not cost us the Swiss franc.
     Returns (None, [reason]) only when the latest-rate fetch fails.
     """
     try:
@@ -81,6 +97,15 @@ def fetch_fx(
     except _FETCH_ERRORS:
         pass
 
+    exceptions: list[str] = []
+    usd_twd: Decimal | None = None
+    try:
+        usd_twd = _fetch_twd(twd_url, timeout).quantize(
+            RATE_QUANTUM, rounding=ROUND_HALF_UP
+        )
+    except _FETCH_ERRORS as e:
+        exceptions.append(f"fx: TWD fetch failed: {type(e).__name__}")
+
     usd_chf_q = usd_chf.quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)
     chf_usd_q = (Decimal(1) / usd_chf_q).quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)
     return (
@@ -89,6 +114,7 @@ def fetch_fx(
             chf_usd=chf_usd_q,
             usd_chf_dod_pct=dod_pct,
             as_of=date_t,
+            usd_twd=usd_twd,
         ),
-        [],
+        exceptions,
     )
