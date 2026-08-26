@@ -61,20 +61,24 @@ def _price_header(d: DigestInput) -> str:
     if s.price_as_of_max is None:
         return f"{title}（{undated} 檔報價日期不明）" if undated else title
     newest = s.price_as_of_max
-    if s.price_as_of_min is not None and s.price_as_of_min != newest:
-        span = f"{s.price_as_of_min.isoformat()} ~ {newest.isoformat()}"
+    oldest = s.price_as_of_min or newest
+    if oldest != newest:
+        span = f"{oldest.isoformat()} ~ {newest.isoformat()}"
     else:
         span = newest.isoformat()
     try:
-        age = (Date.fromisoformat(d.date_str) - newest).days
+        digest_date = Date.fromisoformat(d.date_str)
+        future_days = (newest - digest_date).days
+        oldest_age = (digest_date - oldest).days
     except ValueError:
-        age = 0
-    if age < 0:
-        freshness = f"，日期異常：晚於摘要 {abs(age)} 天"
-    elif age > PRICE_STALE_DAYS:
-        freshness = f"，已 {age} 天未更新"
-    else:
-        freshness = ""
+        future_days = oldest_age = 0
+    notes: list[str] = []
+    if future_days > 0:
+        notes.append(f"日期異常：晚於摘要 {future_days} 天")
+    if oldest_age > PRICE_STALE_DAYS:
+        prefix = "最舊已" if oldest != newest else "已"
+        notes.append(f"{prefix} {oldest_age} 天未更新")
+    freshness = "".join(f"，{note}" for note in notes)
     undated_note = f"，另有 {undated} 檔日期不明" if undated else ""
     return f"{title}（報價日 {span}{freshness}{undated_note}）"
 

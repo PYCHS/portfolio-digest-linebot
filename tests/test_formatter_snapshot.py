@@ -558,6 +558,18 @@ def test_mixed_quote_dates_render_as_a_span():
     assert "📈 持倉行情（報價日 2026-04-20 ~ 2026-04-24）" in out
 
 
+def test_mixed_quote_dates_flag_the_oldest_stale_quote():
+    snap = _snapshot_with_prices(
+        price_as_of_min=date(2026, 3, 20),
+        price_as_of_max=date(2026, 4, 24),
+    )
+    out = render(_with_snapshot(snap))
+    assert (
+        "📈 持倉行情（報價日 2026-03-20 ~ 2026-04-24，最舊已 36 天未更新）"
+        in out
+    )
+
+
 def test_undated_quote_is_disclosed_alongside_dated_quotes():
     dated = _all_populated().snapshot.prices[0]
     undated = HoldingPrice(
