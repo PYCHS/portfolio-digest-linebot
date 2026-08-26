@@ -6,10 +6,13 @@ from decimal import ROUND_HALF_UP, Decimal
 from .models import DigestInput, HoldingPrice
 
 YIELD_QUANTUM = Decimal("0.01")
-# A quote file nobody has refreshed for over a week is still worth showing,
-# but it must not read as today's market — past this many days the header
-# says how long it has been sitting.
-PRICE_STALE_DAYS = 7
+# Quotes are fetched live each morning, so a date that stops moving means
+# the fetch is failing and the fallback file is carrying the section — a
+# week is far too long to wait before saying so. It cannot go much below
+# four, though: staleness is judged from the *oldest* quote, and the E.SUN
+# table does not move at weekends, so a Friday quote read on the Tuesday
+# after a long weekend is four days old and perfectly healthy.
+PRICE_STALE_DAYS = 4
 # The "coupons reach the bank about a week later" note only earns its line in
 # the run-up to an actual payment, not on the other ~355 days of the year.
 BANK_LAG_NOTE_DAYS = 7
@@ -115,6 +118,10 @@ def render(d: DigestInput) -> str:
             stale = ""
         lines.append(f"- USD/CHF: {d.fx.usd_chf:.4f}（{dod}{stale}）")
         lines.append(f"- CHF/USD: {d.fx.chf_usd:.4f}")
+        # No DoD% here on purpose: the TWD provider has no history
+        # endpoint, and an unlabelled blank would read as "unchanged".
+        if d.fx.usd_twd is not None:
+            lines.append(f"- USD/TWD: {d.fx.usd_twd:.4f}")
     lines.append("")
 
     lines.append("\U0001f4f0 新聞")

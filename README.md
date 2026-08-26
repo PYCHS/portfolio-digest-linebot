@@ -9,12 +9,13 @@ A production-oriented Python CLI that aggregates portfolio positions, cashflows,
 
 ## Status
 
-**M0–M12 complete.** The end-to-end digest pipeline, LINE delivery, automated tests, scheduling, **M9 — Projected Cashflow** (coupon/interest calendar from `positions.csv` + `recurring.csv`), **M10 — LLM news-impact analysis** (Traditional-Chinese per-headline impact via the Anthropic API, graceful fallback without a key), **M11 — daily morning greeting** (LLM-generated 早安 + encouragement + joke, offline rotation fallback), and **M12 — mark-to-market** (current vs. entry price per holding from a manually-maintained quote file) are implemented. The M9 dated projection calendar has since been retired from the message — it ran a dozen near-identical lines every day — leaving only its next-inflow line in the Snapshot section.
+**M0–M13 complete.** The end-to-end digest pipeline, LINE delivery, automated tests, scheduling, **M9 — Projected Cashflow** (coupon/interest calendar from `positions.csv` + `recurring.csv`), **M10 — LLM news-impact analysis** (Traditional-Chinese per-headline impact via the Anthropic API, graceful fallback without a key), **M11 — daily morning greeting** (LLM-generated 早安 + encouragement + joke, offline rotation fallback), **M12 — mark-to-market** (current vs. entry price per holding), and **M13 — live quotes and the TWD rate** (prices scraped daily from Public.com and E.SUN Bank with the hand-maintained file as fallback; USD/TWD from a second FX provider) are implemented. The M9 dated projection calendar has since been retired from the message — it ran a dozen near-identical lines every day — leaving only its next-inflow line in the Snapshot section.
 
 ## Features
 
 - Aggregates portfolio positions, actual cashflows, FX rates, and issuer news
-- Marks every holding against its entry price, with per-holding change and a per-currency unrealized total, and flags quotes that have gone stale
+- Marks every holding against its entry price, with per-holding change and a per-currency unrealized total
+- Fetches those quotes daily and validates each one against the holding's own coupon and maturity, so a redesigned page yields no quote rather than a wrong one; unfetched holdings fall back to the stored file and the section header says how old the numbers are
 - Projects upcoming cashflows (bond coupons, FCN coupons, loan/repo interest) to answer when money next arrives
 - Analyzes each headline with an LLM from the portfolio's point of view (bondholder / FCN-holder), rendered in Traditional Chinese; falls back to plain headlines when no API key is set
 - Opens every digest with a warm Traditional-Chinese morning greeting, encouragement, and a daily joke (LLM-generated; deterministic offline rotation without a key)
@@ -63,14 +64,16 @@ cp data/ledger.example.csv         private/ledger.csv
 |---|---|---|
 | `private/watchlist.yaml` | News-source watchlist | yes |
 | `private/positions.csv` | Holdings + coupon schedule (used by the Snapshot section) | yes |
-| `private/prices.csv` | Current market quotes per ISIN (clean price per 100 face) driving the 持倉行情 section; see `data/prices.example.csv` | **optional** — missing file renders every bond as 無報價 |
+| `private/prices.csv` | Fallback/override quotes per ISIN (clean price per 100 face) for the 持倉行情 section; see `data/prices.example.csv` | **optional** — used only where the live fetch comes back empty |
 | `private/ledger.csv` | **Actual** cash movements (deposits, coupons received, fees) | **optional** — missing file renders the Cashflow section as zeros |
 | `private/recurring.csv` | Scheduled cashflows the positions schema can't express: FCN monthly coupons, loan/repo interest, insurance payouts (see `data/recurring.example.csv`) | **optional** — projection then uses bond coupons only |
 | `private/llm_context.txt` | One-paragraph portfolio description injected into the LLM prompt | **optional** — a generic default is used |
 
 `ledger.csv` and `positions.csv` are deliberately distinct: ledger captures actuals, while positions captures holdings and the *expected* coupon schedule. That schedule, combined with optional `recurring.csv` events, is what answers when money next arrives; projections are never merged into the ledger.
 
-`prices.csv` is separate again, and manual on purpose: there is no dependable free quote feed for these corporate bonds, so the numbers come off the broker statement. Keeping them out of `positions.csv` means a price refresh touches one small file (one small secret, in the Actions deployment) instead of the whole position book. Rows with a blank `price` are skipped, so the file can be seeded with every ISIN up front. Every quote carries an `as_of` date, and the digest says so in the section header — past a week it also says how long the file has been sitting.
+Quotes are fetched fresh each run (see `src/sources/quotes.py`): Public.com for US issues, whose URL is derivable from the ISIN, and E.SUN Bank's offshore-bond table for XS-prefixed eurobonds that US sources do not carry. Both are scraped HTML and will eventually break, so every quote is checked against the coupon and maturity recorded in `positions.csv` before it is trusted — a wrong-bond redirect or a redesigned page produces no quote instead of a plausible-looking wrong one.
+
+`prices.csv` is what catches that: anything the fetch misses keeps its stored value, and since every quote carries an `as_of` date the section header dates the numbers and, past four days — enough to absorb a long weekend on the bank table — says how long they have been sitting. Rows with a blank `price` are skipped, so the file can be seeded with every ISIN up front. Set `FETCH_QUOTES=0` to skip the network entirely and run purely off the file.
 
 ## Environment variables
 
@@ -81,7 +84,8 @@ cp data/ledger.example.csv         private/ledger.csv
 | `LOG_LEVEL` | `DEBUG`/`INFO`/`WARNING`/`ERROR` (default `INFO`) |
 | `TIMEZONE` | Always `Asia/Taipei` for this bot |
 | `WATCHLIST_PATH` / `LEDGER_PATH` / `POSITIONS_PATH` / `NEWS_SEEN_PATH` | Override default file locations |
-| `PRICES_PATH` | Market-quote CSV (default `private/prices.csv`) |
+| `PRICES_PATH` | Fallback quote CSV (default `private/prices.csv`) |
+| `FETCH_QUOTES` | `0` disables the live quote fetch and runs off `prices.csv` alone (default on) |
 | `RECURRING_PATH` | Recurring-cashflow CSV (default `private/recurring.csv`) |
 | `PROJECTION_DAYS` | Projected-cashflow horizon in days (default `60`) |
 | `ANTHROPIC_API_KEY` | Enables M10 LLM news analysis; unset = plain headlines |
@@ -209,3 +213,4 @@ The script prefers `.venv\Scripts\python.exe` if present, otherwise `python` on 
 | M10 | Anthropic-powered Traditional-Chinese news-impact analysis with graceful fallback ✅ |
 | M11 | Daily morning greeting with attributed quote, joke, and offline fallback ✅ |
 | M12 | Mark-to-market: current vs. entry price per holding from `prices.csv`, with staleness flagging ✅ |
+| M13 | Live quotes (Public.com / E.SUN) validated against each holding's terms, file fallback, and USD/TWD ✅ |
