@@ -7,6 +7,13 @@ on:
     # scheduling at :17 reduces typical scheduler drift from ~60-90 min
     # to ~10-30 min. Workflow usually fires close to 08:00 Taipei.
     - cron: "17 23 * * *"
+    # Backup pass, one hour later. GitHub's scheduler is best-effort: on
+    # 2026-08-26 the 23:17 slot was dropped outright — not delayed, not
+    # failed, simply never queued, with no notification — and the family got
+    # no digest that morning. Two independent slots make a total miss far
+    # less likely. The guard step below keeps this from double-sending when
+    # both fire, and lets it retry when the first one ran but failed.
+    - cron: "17 0 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -20,6 +27,9 @@ on:
 
 permissions:
   contents: read
+  # The guard step reads this workflow's own run history to see whether the
+  # day's digest already went out.
+  actions: read
 
 jobs:
   digest:
@@ -85,7 +95,45 @@ jobs:
             printf '%s' "$LLM_CONTEXT_TXT_B64" | base64 -d > private/llm_context.txt
           fi
 
+      # Two scheduled slots mean two chances to reach the group, but only one
+      # digest a day should actually arrive. A *successful* earlier scheduled
+      # run on the same Taipei date is the signal to stand down; a failed one
+      # is not, so a bad first attempt still gets retried by the second slot.
+      # Manual dispatches never skip — they are deliberate.
+      - name: Skip if today's digest already went out
+        id: guard
+        if: github.event_name == 'schedule'
+        # Failing open is the whole point: if this check cannot answer, the
+        # output stays unset and the digest sends. A duplicate message is a
+        # mild annoyance; a guard that silently suppresses the only delivery
+        # of the day recreates the exact failure it exists to prevent.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Taipei as a fixed UTC+8 offset rather than TZ=Asia/Taipei: Taiwan
+          # has no daylight saving, so the offset is exact all year, and this
+          # form needs no tz database — which means it behaves the same when
+          # tested outside a Linux runner instead of silently returning UTC.
+          today=$(date -u -d "+8 hours" +%F)
+          already=false
+          while read -r id created; do
+            [ "$id" = "${{ github.run_id }}" ] && continue
+            if [ "$(date -u -d "$created + 8 hours" +%F)" = "$today" ]; then
+              echo "run $id already delivered the digest for $today (Taipei)"
+              already=true
+              break
+            fi
+          done < <(
+            gh run list --workflow digest.yml --event schedule --status success \
+              --limit 20 --json databaseId,createdAt \
+              --jq '.[] | "\(.databaseId) \(.createdAt)"'
+          )
+          echo "already=$already" >> "$GITHUB_OUTPUT"
+
       - name: Run digest
+        if: steps.guard.outputs.already != 'true'
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.mode }}" = "push" ]; then
