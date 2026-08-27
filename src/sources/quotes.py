@@ -138,11 +138,21 @@ def _get(session: requests.Session, url: str, timeout: float) -> str | None:
 
 
 def _identity_matches(t: _Target, coupon: Decimal | None, maturity: Date | None) -> str | None:
-    """Return a reason string when the page is not describing our bond."""
-    if t.coupon is not None and coupon is not None:
+    """Return why the source did not prove it is describing our bond.
+
+    A missing source value is a failed identity check, not permission to skip
+    that check. Otherwise a partial page redesign could leave the price
+    parseable while silently removing the fields that protect us from using a
+    plausible quote for the wrong security.
+    """
+    if t.coupon is not None:
+        if coupon is None:
+            return "coupon unavailable"
         if abs(coupon - t.coupon) > COUPON_TOLERANCE:
             return f"coupon {coupon} != {t.coupon}"
-    if t.maturity is not None and maturity is not None:
+    if t.maturity is not None:
+        if maturity is None:
+            return "maturity unavailable"
         if maturity != t.maturity:
             return f"maturity {maturity} != {t.maturity}"
     return None
@@ -178,7 +188,7 @@ def _fetch_public(
         _parse_date(_public_field(html, "Maturity") or ""),
     )
     if mismatch:
-        return None, f"quotes {t.isin}: wrong bond ({mismatch})"
+        return None, f"quotes {t.isin}: bond identity check failed ({mismatch})"
     # The page carries no timestamp; it is a live quote, so the run date is
     # the honest answer.
     return PricePoint(price=price, as_of=today), None
@@ -224,7 +234,9 @@ def _fetch_esun(
 
         mismatch = _identity_matches(t, _parse_decimal(coupon_raw), _parse_date(maturity_raw))
         if mismatch:
-            exceptions.append(f"quotes {t.isin}: wrong bond ({mismatch})")
+            exceptions.append(
+                f"quotes {t.isin}: bond identity check failed ({mismatch})"
+            )
             continue
 
         # Each row states the date its quote was struck — better than assuming

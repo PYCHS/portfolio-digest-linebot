@@ -7,6 +7,7 @@ we invented would prove nothing about the sites we actually scrape.
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+import re
 
 import pytest
 import requests
@@ -97,7 +98,9 @@ def test_wrong_bond_on_the_page_is_rejected_rather_than_trusted(tmp_path, reques
     wrong = DOW_ROW.replace("9.40,2039-05-15", "4.10,2039-05-15")
     got, exc = fetch_quotes(_positions(tmp_path, wrong), TODAY)
     assert got == {}
-    assert exc == ["quotes US260543BY86: wrong bond (coupon 9.40 != 4.10)"]
+    assert exc == [
+        "quotes US260543BY86: bond identity check failed (coupon 9.40 != 4.10)"
+    ]
 
 
 def test_maturity_mismatch_is_also_rejected(tmp_path, requests_mock):
@@ -105,7 +108,38 @@ def test_maturity_mismatch_is_also_rejected(tmp_path, requests_mock):
     wrong = DOW_ROW.replace("9.40,2039-05-15", "9.40,2041-05-15")
     got, exc = fetch_quotes(_positions(tmp_path, wrong), TODAY)
     assert got == {}
-    assert exc == ["quotes US260543BY86: wrong bond (maturity 2039-05-15 != 2041-05-15)"]
+    assert exc == [
+        "quotes US260543BY86: bond identity check failed "
+        "(maturity 2039-05-15 != 2041-05-15)"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("missing_label", "reason"),
+    [("Coupon", "coupon unavailable"), ("Maturity", "maturity unavailable")],
+)
+def test_missing_public_identity_field_rejects_an_otherwise_parseable_quote(
+    tmp_path, requests_mock, missing_label, reason
+):
+    """A price alone is insufficient when the holding supplies identity data.
+
+    This catches partial page redesigns where the price selector still works
+    but one of the fields used to prove that the page is for this bond does
+    not. The stored quote should win instead of an unverified live value.
+    """
+    html = re.sub(
+        rf'<p class="[^"]*__label">{missing_label}</p>.*?__value"[^>]*>[^<]*<',
+        "",
+        PUBLIC_DOW,
+        count=1,
+        flags=re.S,
+    )
+    requests_mock.get(DOW_URL, text=html)
+    got, exc = fetch_quotes(_positions(tmp_path, DOW_ROW), TODAY)
+    assert got == {}
+    assert exc == [
+        f"quotes US260543BY86: bond identity check failed ({reason})"
+    ]
 
 
 def test_price_outside_the_plausible_band_is_rejected(tmp_path, requests_mock):
