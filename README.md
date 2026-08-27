@@ -131,7 +131,9 @@ The CLI is a single-shot job; schedule it once per day at the desired Asia/Taipe
 
 ### GitHub Actions
 
-[`.github/workflows/digest.yml`](.github/workflows/digest.yml) runs daily at **23:17 UTC** (~07:17 Asia/Taipei target, typically firing close to 08:00 Taipei) and can be triggered manually from the *Actions* tab. The off-the-hour minute is deliberate: GitHub Actions queues are heaviest at `:00 / :15 / :30 / :45 UTC`, and scheduling at `:17` reduces typical scheduler drift from ~60–90 min to ~10–30 min. To change the time, edit the `cron:` line — the value is in UTC.
+[`.github/workflows/digest.yml`](.github/workflows/digest.yml) runs daily at **23:17 UTC** (~07:17 Asia/Taipei target, typically firing close to 08:00 Taipei) and can be triggered manually from the *Actions* tab. The off-the-hour minute is deliberate: GitHub Actions queues are heaviest at `:00 / :15 / :30 / :45 UTC`, and scheduling at `:17` reduces typical scheduler drift from ~60–90 min to ~10–30 min. To change the time, edit the `cron:` lines — the values are in UTC.
+
+A **second slot at 00:17 UTC** backs the first one up. GitHub’s scheduler is best-effort: a slot can be delayed, or dropped entirely without failing or notifying anyone, which is what happened on 2026-08-26 and cost that morning’s digest. Before sending, a scheduled run checks this workflow’s history for a *successful* scheduled run on the same Taipei date and stands down if it finds one, so only one digest a day arrives; a first attempt that ran but failed is not treated as delivery, so the second slot retries it. The check fails open — if it cannot answer, the digest sends anyway, because a duplicate message is far cheaper than a suppressed one. Manual dispatches never skip.
 
 Configure repo secrets under *Settings → Secrets and variables → Actions*:
 

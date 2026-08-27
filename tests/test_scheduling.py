@@ -32,9 +32,20 @@ def _load_workflow() -> dict:
 
 
 def test_workflows_use_read_only_repository_permissions():
+    """No workflow may hold a write scope on the repository token.
+
+    Checked scope by scope rather than against one exact dict: the digest
+    workflow legitimately needs `actions: read` to look up its own run
+    history, and pinning the whole mapping would force anyone adding a
+    read-only scope to weaken this guard in order to pass it.
+    """
     for path in (CI_WORKFLOW, WORKFLOW):
         data = _load_yaml(path)
-        assert data.get("permissions") == {"contents": "read"}, path.name
+        permissions = data.get("permissions")
+        assert isinstance(permissions, dict), f"{path.name}: no explicit permissions"
+        assert permissions.get("contents") == "read", path.name
+        for scope, level in permissions.items():
+            assert level == "read", f"{path.name}: {scope} is {level!r}, not read-only"
 
 
 def test_digest_workflow_has_daily_cron_and_manual_dispatch():
@@ -86,3 +97,48 @@ def test_windows_wrapper_invokes_cli_and_handles_push_flag():
     assert "src.main" in body
     assert "-Push" in body
     assert ".venv" in body, "wrapper should prefer the project venv"
+
+
+def test_digest_workflow_has_a_backup_schedule_slot():
+    """GitHub drops scheduled runs silently — it dropped the 2026-08-26 slot
+    and cost that morning's digest. A second slot is what keeps one dropped
+    cron from meaning no message at all."""
+    crons = [s["cron"] for s in _load_workflow()["on"]["schedule"] if "cron" in s]
+    assert len(crons) >= 2, f"no backup slot: {crons!r}"
+    assert "17 0 * * *" in crons, f"expected the 00:17 UTC backup, got {crons!r}"
+
+
+def test_backup_slot_is_guarded_against_double_sending():
+    data = _load_workflow()
+    job = next(iter(data["jobs"].values()))
+    guard = next((s for s in job["steps"] if s.get("id") == "guard"), None)
+    assert guard is not None, "no guard step: both slots would send"
+    # Only scheduled runs stand down; a manual dispatch is deliberate.
+    assert guard["if"] == "github.event_name == 'schedule'"
+    # The digest itself must be conditioned on the guard's answer.
+    run_step = next(s for s in job["steps"] if s.get("name") == "Run digest")
+    assert run_step["if"] == "steps.guard.outputs.already != 'true'"
+
+
+def test_guard_failure_cannot_suppress_the_digest():
+    """A guard that blocks delivery when it cannot answer would recreate the
+    outage it exists to prevent. Duplicates are the cheaper failure."""
+    job = next(iter(_load_workflow()["jobs"].values()))
+    guard = next(s for s in job["steps"] if s.get("id") == "guard")
+    assert guard.get("continue-on-error") is True
+
+
+def test_guard_reads_taipei_dates_without_a_tz_database():
+    """TZ=Asia/Taipei silently returns UTC where no tz database is installed,
+    which would compare the wrong day. Taiwan has no DST, so a fixed +8 is
+    exact year-round and behaves the same everywhere."""
+    job = next(iter(_load_workflow()["jobs"].values()))
+    guard = next(s for s in job["steps"] if s.get("id") == "guard")
+    # A comment may well name the rejected form in order to explain why it is
+    # rejected; what matters is that no command actually uses it.
+    code = [
+        line for line in guard["run"].splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    assert any("+8 hours" in line for line in code)
+    assert not any("TZ=Asia/Taipei" in line for line in code)
