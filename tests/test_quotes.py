@@ -80,6 +80,29 @@ def test_esun_quote_uses_the_redemption_price_and_its_own_date(tmp_path, request
     assert got["XS2888260564"].as_of == date(2026, 8, 26)
 
 
+@pytest.mark.parametrize(
+    ("source_date", "reason"),
+    [
+        ("", "quote date unavailable"),
+        ("(2026/08/27)", "quote date 2026-08-27 is in the future"),
+    ],
+)
+def test_esun_quote_without_a_trustworthy_date_is_rejected(
+    tmp_path, requests_mock, source_date, reason
+):
+    """An undated or future-dated scrape must not replace a dated fallback.
+
+    Price freshness is part of the quote's integrity: a partial page change
+    can leave the number parseable while dropping its date, and a future date
+    indicates bad source data or a parsing mistake.
+    """
+    html = ESUN_TABLE.replace("(2026/08/26)", source_date)
+    requests_mock.get(ESUN_URL, text=html)
+    got, exc = fetch_quotes(_positions(tmp_path, NANSHAN_ROW), TODAY)
+    assert got == {}
+    assert exc == [f"quotes XS2888260564: {reason}"]
+
+
 def test_instruments_without_a_public_quote_are_never_requested(tmp_path, requests_mock):
     """The FCN's CH code has no source to look up; going out for it would
     only produce a daily exception line about a bond that cannot be quoted."""

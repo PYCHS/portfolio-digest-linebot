@@ -195,7 +195,7 @@ def _fetch_public(
 
 
 def _fetch_esun(
-    targets: list[_Target], session: requests.Session, timeout: float
+    targets: list[_Target], today: Date, session: requests.Session, timeout: float
 ) -> tuple[dict[str, PricePoint], list[str]]:
     """One table request covers every XS holding.
 
@@ -232,6 +232,16 @@ def _fetch_esun(
             exceptions.append(f"quotes {t.isin}: price {price} out of range")
             continue
 
+        quote_date = _parse_date(m.group(2) or "")
+        if quote_date is None:
+            exceptions.append(f"quotes {t.isin}: quote date unavailable")
+            continue
+        if quote_date > today:
+            exceptions.append(
+                f"quotes {t.isin}: quote date {quote_date} is in the future"
+            )
+            continue
+
         mismatch = _identity_matches(t, _parse_decimal(coupon_raw), _parse_date(maturity_raw))
         if mismatch:
             exceptions.append(
@@ -241,7 +251,7 @@ def _fetch_esun(
 
         # Each row states the date its quote was struck — better than assuming
         # today, since the table does not move at weekends.
-        out[t.isin] = PricePoint(price=price, as_of=_parse_date(m.group(2) or ""))
+        out[t.isin] = PricePoint(price=price, as_of=quote_date)
     return out, exceptions
 
 
@@ -281,7 +291,7 @@ def fetch_quotes(
         xs = [x for x in targets if x.isin.startswith("XS")]
         if xs:
             try:
-                found, exc = _fetch_esun(xs, session, timeout)
+                found, exc = _fetch_esun(xs, today, session, timeout)
                 quotes.update(found)
                 exceptions.extend(exc)
             except requests.RequestException as exc:
