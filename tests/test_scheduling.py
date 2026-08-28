@@ -99,13 +99,58 @@ def test_windows_wrapper_invokes_cli_and_handles_push_flag():
     assert ".venv" in body, "wrapper should prefer the project venv"
 
 
-def test_digest_workflow_has_a_backup_schedule_slot():
-    """GitHub drops scheduled runs silently — it dropped the 2026-08-26 slot
-    and cost that morning's digest. A second slot is what keeps one dropped
-    cron from meaning no message at all."""
+def test_digest_workflow_has_several_backup_schedule_slots():
+    """GitHub drops scheduled runs silently: 08-26 vanished in an incident,
+    08-27 fired five hours late, and on 08-28 both slots were skipped with
+    no incident at all. Two were not enough, since slots queue through the
+    same subsystem and get dropped together. More of them is a probability
+    play, and the guard keeps only the first success from mattering."""
     crons = [s["cron"] for s in _load_workflow()["on"]["schedule"] if "cron" in s]
-    assert len(crons) >= 2, f"no backup slot: {crons!r}"
-    assert "17 0 * * *" in crons, f"expected the 00:17 UTC backup, got {crons!r}"
+    assert len(crons) >= 6, f"too few chances to land: {crons!r}"
+    assert "17 23 * * *" in crons, "the original morning slot must be kept"
+    assert "17 0 * * *" in crons
+
+
+def test_schedule_slots_are_spread_over_hours_not_bunched():
+    """Slots minutes apart would all die in the same bad window."""
+    crons = [s["cron"] for s in _load_workflow()["on"]["schedule"] if "cron" in s]
+    minutes = sorted(
+        # Slots run either side of midnight UTC; fold onto one line so the
+        # spread is measured over the real elapsed window.
+        ((int(c.split()[1]) + 1) % 24) * 60 + int(c.split()[0])
+        for c in crons
+    )
+    assert minutes[-1] - minutes[0] >= 120, f"window too narrow: {crons!r}"
+
+
+def test_schedule_slots_avoid_the_busiest_queue_minutes():
+    """GHA queues are heaviest on the hour and half hour."""
+    crons = [s["cron"] for s in _load_workflow()["on"]["schedule"] if "cron" in s]
+    for cron in crons:
+        assert int(cron.split()[0]) % 30 != 0, f"{cron} sits on a busy minute"
+
+
+def test_run_name_records_whether_the_run_delivered():
+    """The guard tells a real send from a preview by the run's title, so the
+    title has to carry the mode."""
+    data = _load_workflow()
+    run_name = data.get("run-name", "")
+    assert "push" in run_name and "inputs.mode" in run_name, run_name
+
+
+def test_guard_counts_manual_pushes_as_the_days_delivery():
+    """A manual catch-up followed by a late scheduled slot sent the digest
+    twice on 2026-08-27, because only scheduled runs were considered. Any
+    successful run that pushed has to count."""
+    job = next(iter(_load_workflow()["jobs"].values()))
+    guard = next(s for s in job["steps"] if s.get("id") == "guard")
+    code = [
+        line for line in guard["run"].splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    joined = "\n".join(code)
+    assert "--event schedule" not in joined, "manual pushes would be ignored again"
+    assert '"(push)"' in joined, "dry-run previews must not count as delivery"
 
 
 def test_backup_slot_is_guarded_against_double_sending():
