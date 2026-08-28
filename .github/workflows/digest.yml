@@ -1,5 +1,10 @@
 name: Daily digest
 
+# Encodes the mode in the run's title so the guard can tell a run that
+# actually delivered from one that only previewed. Scheduled runs always
+# push; a manual run is whatever was asked for.
+run-name: Daily digest (${{ github.event_name == 'schedule' && 'push' || inputs.mode }})
+
 on:
   schedule:
     # 23:17 UTC = 07:17 Asia/Taipei target. Off-the-hour minute on purpose:
@@ -7,13 +12,29 @@ on:
     # scheduling at :17 reduces typical scheduler drift from ~60-90 min
     # to ~10-30 min. Workflow usually fires close to 08:00 Taipei.
     - cron: "17 23 * * *"
-    # Backup pass, one hour later. GitHub's scheduler is best-effort: on
-    # 2026-08-26 the 23:17 slot was dropped outright — not delayed, not
-    # failed, simply never queued, with no notification — and the family got
-    # no digest that morning. Two independent slots make a total miss far
-    # less likely. The guard step below keeps this from double-sending when
-    # both fire, and lets it retry when the first one ran but failed.
+    # Six further passes at half-hour steps, covering 07:17-10:17 Taipei.
+    #
+    # GitHub's scheduler is best-effort and has been missing badly: 08-26 was
+    # dropped during an Actions incident, 08-27 fired five hours late, and on
+    # 08-28 both slots were skipped with no incident, no failure and no
+    # notification while the same repo's CI ran normally. Two slots were not
+    # enough because they queue through the same subsystem and get dropped
+    # together, so this trades cheap wasted runs for more chances to land.
+    #
+    # It is a probability play, not a guarantee: if GitHub declines to
+    # schedule this workflow for a whole window, every slot in that window
+    # goes with it. The guard below means only the first one to succeed
+    # actually sends; the rest cost about a minute of free runner time each.
+    #
+    # Minutes stay off the hour and the half hour where GHA queues are
+    # heaviest. The first two values are unchanged so the existing morning
+    # timing is preserved.
+    - cron: "47 23 * * *"
     - cron: "17 0 * * *"
+    - cron: "47 0 * * *"
+    - cron: "17 1 * * *"
+    - cron: "47 1 * * *"
+    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -118,17 +139,26 @@ jobs:
           # tested outside a Linux runner instead of silently returning UTC.
           today=$(date -u -d "+8 hours" +%F)
           already=false
-          while read -r id created; do
+          # Any successful run that pushed counts as the day's delivery, not
+          # just a scheduled one. On 2026-08-27 a manual catch-up went out in
+          # the morning and a five-hour-late scheduled slot sent the same
+          # digest again at lunchtime, because this only looked at scheduled
+          # runs. Dry-run previews are excluded by the same title check.
+          while IFS=$'\t' read -r id created title; do
             [ "$id" = "${{ github.run_id }}" ] && continue
+            case "$title" in
+              *"(push)"*) ;;
+              *) continue ;;
+            esac
             if [ "$(date -u -d "$created + 8 hours" +%F)" = "$today" ]; then
               echo "run $id already delivered the digest for $today (Taipei)"
               already=true
               break
             fi
           done < <(
-            gh run list --workflow digest.yml --event schedule --status success \
-              --limit 20 --json databaseId,createdAt \
-              --jq '.[] | "\(.databaseId) \(.createdAt)"'
+            gh run list --workflow digest.yml --status success \
+              --limit 40 --json databaseId,createdAt,displayTitle \
+              --jq '.[] | [.databaseId, .createdAt, .displayTitle] | @tsv'
           )
           echo "already=$already" >> "$GITHUB_OUTPUT"
 
