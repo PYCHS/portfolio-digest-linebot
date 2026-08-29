@@ -113,6 +113,22 @@ def test_instruments_without_a_public_quote_are_never_requested(tmp_path, reques
     assert len(requests_mock.request_history) == 1
 
 
+@pytest.mark.parametrize("bad_isin", ["US260543BY8", "US260543BY85"])
+def test_invalid_isin_is_reported_before_any_network_request(
+    tmp_path, requests_mock, bad_isin
+):
+    """A US/XS prefix alone does not make a trustworthy lookup target.
+
+    The first case has the wrong length; the second has a bad ISO 6166 Luhn
+    check digit. Neither should be converted into a CUSIP and sent upstream.
+    """
+    row = DOW_ROW.replace("US260543BY86", bad_isin)
+    got, exc = fetch_quotes(_positions(tmp_path, row), TODAY)
+    assert got == {}
+    assert exc == [f"quotes row 2: invalid ISIN {bad_isin!r}"]
+    assert requests_mock.request_history == []
+
+
 def test_wrong_bond_on_the_page_is_rejected_rather_than_trusted(tmp_path, requests_mock):
     """If the URL ever resolves to a different security, coupon and maturity
     stop matching. No quote is the right answer — a plausible wrong price

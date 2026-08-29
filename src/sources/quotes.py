@@ -59,6 +59,7 @@ _TD = re.compile(r"<td[^>]*>(.*?)</td>", re.S)
 _TAGS = re.compile(r"<[^>]+>")
 # E.SUN puts the quote date in the price cell: "95.56 (2026/08/26)".
 _ESUN_PRICE = re.compile(r"([\d.]+)\s*(?:\((\d{4}/\d{2}/\d{2})\))?")
+_ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}\d$")
 
 
 class _Target:
@@ -90,6 +91,18 @@ def _parse_decimal(raw: str) -> Decimal | None:
     return val if val.is_finite() else None
 
 
+def _is_valid_isin(value: str) -> bool:
+    """Validate ISO 6166 structure and its final Luhn check digit."""
+    if _ISIN.fullmatch(value) is None:
+        return False
+    digits = "".join(str(int(char, 36)) for char in value)
+    total = 0
+    for index, char in enumerate(reversed(digits)):
+        number = int(char) * (2 if index % 2 else 1)
+        total += number // 10 + number % 10
+    return total % 10 == 0
+
+
 def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
     """Pull the quotable holdings out of positions.csv.
 
@@ -105,9 +118,13 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
         return [], [f"quotes: positions read error: {e}"]
 
     targets: list[_Target] = []
-    for row in rows:
+    exceptions: list[str] = []
+    for row_number, row in enumerate(rows, start=2):
         isin = (row.get("isin_or_code") or "").strip().upper()
         if not isin.startswith(("US", "XS")):
+            continue
+        if not _is_valid_isin(isin):
+            exceptions.append(f"quotes row {row_number}: invalid ISIN {isin!r}")
             continue
         targets.append(
             _Target(
@@ -117,7 +134,7 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
                 maturity=_parse_date(row.get("maturity") or ""),
             )
         )
-    return targets, []
+    return targets, exceptions
 
 
 def _get(session: requests.Session, url: str, timeout: float) -> str | None:
