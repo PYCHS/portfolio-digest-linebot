@@ -117,7 +117,8 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
     except OSError as e:
         return [], [f"quotes: positions read error: {e}"]
 
-    targets: list[_Target] = []
+    targets: dict[str, _Target] = {}
+    conflicting_isins: set[str] = set()
     exceptions: list[str] = []
     for row_number, row in enumerate(rows, start=2):
         isin = (row.get("isin_or_code") or "").strip().upper()
@@ -126,15 +127,30 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
         if not _is_valid_isin(isin):
             exceptions.append(f"quotes row {row_number}: invalid ISIN {isin!r}")
             continue
-        targets.append(
-            _Target(
-                isin=isin,
-                name=(row.get("issuer_or_name") or "").strip(),
-                coupon=_parse_decimal(row.get("coupon_rate_pct") or ""),
-                maturity=_parse_date(row.get("maturity") or ""),
-            )
+        target = _Target(
+            isin=isin,
+            name=(row.get("issuer_or_name") or "").strip(),
+            coupon=_parse_decimal(row.get("coupon_rate_pct") or ""),
+            maturity=_parse_date(row.get("maturity") or ""),
         )
-    return targets, exceptions
+        if isin in conflicting_isins:
+            continue
+        existing = targets.get(isin)
+        if existing is None:
+            targets[isin] = target
+        elif (existing.coupon, existing.maturity) != (
+            target.coupon,
+            target.maturity,
+        ):
+            # Multiple lots of one bond are normal, but their identifying
+            # terms must agree. Choosing either row could validate the wrong
+            # security, so remove the target instead of guessing.
+            targets.pop(isin)
+            conflicting_isins.add(isin)
+            exceptions.append(
+                f"quotes row {row_number}: conflicting duplicate ISIN {isin!r}"
+            )
+    return list(targets.values()), exceptions
 
 
 def _get(session: requests.Session, url: str, timeout: float) -> str | None:

@@ -129,6 +129,30 @@ def test_invalid_isin_is_reported_before_any_network_request(
     assert requests_mock.request_history == []
 
 
+def test_duplicate_lots_fetch_their_shared_isin_only_once(tmp_path, requests_mock):
+    """Multiple lots of one bond share one market quote.
+
+    Besides wasting a request, fetching twice used to let a failure on the
+    second lot remove a quote already obtained for the first.
+    """
+    requests_mock.get(DOW_URL, text=PUBLIC_DOW)
+    got, exc = fetch_quotes(_positions(tmp_path, DOW_ROW, DOW_ROW), TODAY)
+    assert exc == []
+    assert got["US260543BY86"].price == Decimal("130.69")
+    assert len(requests_mock.request_history) == 1
+
+
+def test_conflicting_duplicate_isin_is_rejected_before_lookup(tmp_path, requests_mock):
+    """Two rows cannot safely identify one bond when their terms disagree."""
+    conflicting = DOW_ROW.replace("9.40,2039-05-15", "4.10,2041-05-15")
+    got, exc = fetch_quotes(_positions(tmp_path, DOW_ROW, conflicting), TODAY)
+    assert got == {}
+    assert exc == [
+        "quotes row 3: conflicting duplicate ISIN 'US260543BY86'"
+    ]
+    assert requests_mock.request_history == []
+
+
 def test_wrong_bond_on_the_page_is_rejected_rather_than_trusted(tmp_path, requests_mock):
     """If the URL ever resolves to a different security, coupon and maturity
     stop matching. No quote is the right answer — a plausible wrong price
