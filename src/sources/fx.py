@@ -58,8 +58,25 @@ def _fetch(base_url: str, segment: str, timeout: float) -> tuple[Date, Decimal]:
 
 
 def _fetch_twd(url: str, timeout: float) -> Decimal:
-    resp = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
-    resp.raise_for_status()
+    last_exc: requests.RequestException | None = None
+    for attempt in range(FETCH_MAX_ATTEMPTS):
+        try:
+            resp = requests.get(
+                url, timeout=timeout, headers={"User-Agent": USER_AGENT}
+            )
+            resp.raise_for_status()
+        except requests.RequestException as exc:
+            last_exc = exc
+            if attempt + 1 < FETCH_MAX_ATTEMPTS:
+                time.sleep(FETCH_RETRY_BACKOFF_SEC)
+            continue
+        break
+    else:
+        assert last_exc is not None
+        raise last_exc
+
+    # As with the CHF source, retry transport failures only. A successful
+    # response with missing or malformed data will not improve by repeating.
     rate = Decimal(str(resp.json()["rates"]["TWD"]))
     if not rate.is_finite() or rate <= 0:
         raise ValueError(f"invalid TWD rate: {rate!r}")

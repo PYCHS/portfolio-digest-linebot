@@ -194,8 +194,11 @@ def test_twd_rate_is_fetched_from_the_second_provider(requests_mock):
     assert fx.usd_twd == Decimal("31.8477")
 
 
-def test_twd_provider_failure_does_not_cost_us_the_franc(requests_mock):
+def test_twd_provider_failure_does_not_cost_us_the_franc(
+    monkeypatch, requests_mock
+):
     """Losing one currency must not blank the whole FX section."""
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
     requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
     requests_mock.get(TWD, status_code=503)
@@ -204,6 +207,27 @@ def test_twd_provider_failure_does_not_cost_us_the_franc(requests_mock):
     assert fx.usd_chf == Decimal("0.9123")
     assert fx.usd_twd is None
     assert exc == ["fx: TWD fetch failed: HTTPError"]
+    assert len([r for r in requests_mock.request_history if r.url == TWD]) == 2
+
+
+def test_twd_fetch_retries_once_on_transient_failure(monkeypatch, requests_mock):
+    """A one-off provider blip should not omit TWD from an otherwise good run."""
+    monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    requests_mock.get(
+        TWD,
+        [
+            {"exc": requests.exceptions.ConnectTimeout},
+            {"json": {"rates": {"TWD": 31.8477}}},
+        ],
+    )
+
+    fx, exc = fetch_fx()
+
+    assert exc == []
+    assert fx.usd_twd == Decimal("31.8477")
+    assert len([r for r in requests_mock.request_history if r.url == TWD]) == 2
 
 
 def test_twd_missing_from_the_payload_is_a_soft_failure(requests_mock):
@@ -213,6 +237,8 @@ def test_twd_missing_from_the_payload_is_a_soft_failure(requests_mock):
     fx, exc = fetch_fx()
     assert fx.usd_twd is None
     assert exc == ["fx: TWD fetch failed: KeyError"]
+    # A valid HTTP response with bad data is not transient; do not retry it.
+    assert len([r for r in requests_mock.request_history if r.url == TWD]) == 1
 
 
 @pytest.mark.parametrize("bad", [0, -3.2, "Infinity", "N/A"])
