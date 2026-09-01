@@ -9,6 +9,15 @@ DEFAULT_TIMEOUT = 10.0
 LINE_TEXT_LIMIT = 5000  # LINE's per-text-message character cap
 
 
+def _redact_secrets(text: object, *secrets: str) -> str:
+    """Remove caller-provided credentials and identifiers from error details."""
+    text = str(text)
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, "[redacted]")
+    return text
+
+
 def push_message(
     *,
     text: str,
@@ -49,5 +58,6 @@ def push_message(
         if isinstance(body, dict):
             detail = body.get("message", "") or ""
     except ValueError:
-        detail = (resp.text or "")[:200]
+        detail = resp.text or ""
+    detail = _redact_secrets(detail, access_token, group_id)[:200]
     return False, f"HTTP {resp.status_code}: {detail}".rstrip(": ")

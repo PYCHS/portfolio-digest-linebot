@@ -69,9 +69,28 @@ def test_message_over_limit_rejected_without_network_call(requests_mock):
 
 
 def test_error_message_does_not_leak_token_or_group_id(requests_mock):
-    requests_mock.post(PUSH_URL, status_code=403, json={"message": "Forbidden"})
+    requests_mock.post(
+        PUSH_URL,
+        status_code=403,
+        json={"message": "Forbidden for C-supersecret using tok-supersecret"},
+    )
     ok, err = push_message(
         text="hi", group_id="C-supersecret", access_token="tok-supersecret"
     )
     assert ok is False
     assert "supersecret" not in err
+    assert err == "HTTP 403: Forbidden for [redacted] using [redacted]"
+
+
+def test_plain_text_error_message_does_not_leak_secrets(requests_mock):
+    requests_mock.post(
+        PUSH_URL,
+        status_code=502,
+        text="Proxy rejected tok-supersecret for C-supersecret",
+    )
+    ok, err = push_message(
+        text="hi", group_id="C-supersecret", access_token="tok-supersecret"
+    )
+    assert ok is False
+    assert "supersecret" not in err
+    assert err == "HTTP 502: Proxy rejected [redacted] for [redacted]"
