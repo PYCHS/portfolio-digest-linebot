@@ -44,7 +44,7 @@ def load_seen(path: Path) -> list[SeenEntry]:
             if isinstance(title_norm, str) and isinstance(first_seen, str):
                 out.append(SeenEntry(title_norm=title_norm, first_seen=first_seen))
         return out
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, UnicodeError, OSError):
         return []
 
 

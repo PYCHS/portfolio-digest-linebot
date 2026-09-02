@@ -115,6 +115,12 @@ def test_load_seen_recovers_from_corrupt_json(tmp_path):
     assert load_seen(p) == []
 
 
+def test_load_seen_recovers_from_invalid_utf8(tmp_path):
+    p = tmp_path / "seen.json"
+    p.write_bytes(b'{"entries": [\xff]}')
+    assert load_seen(p) == []
+
+
 @pytest.mark.parametrize("content", ["null", "[]", '"unexpected"'])
 def test_load_seen_recovers_from_non_object_json(tmp_path, content):
     p = tmp_path / "seen.json"
