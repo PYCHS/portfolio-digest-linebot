@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     if context_path.exists():
         try:
             llm_context = context_path.read_text(encoding="utf-8").strip() or None
-        except OSError:
+        except (OSError, UnicodeError):
             llm_context = None
 
     seen_path = Path(os.environ.get("NEWS_SEEN_PATH", "private/.news_seen.json"))

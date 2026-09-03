@@ -236,6 +236,23 @@ def test_invalid_log_level_returns_rc2_without_traceback(monkeypatch, capsys):
     assert "VERBOSE" in err
 
 
+def test_invalid_utf8_llm_context_falls_back_without_crashing(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    context = tmp_path / "llm_context.txt"
+    context.write_bytes(b"\xff\xfe")
+    monkeypatch.setenv("LLM_CONTEXT_PATH", str(context))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    rc = main(["--dry-run"])
+
+    assert rc == 0
+    assert "每日投資摘要" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("value", ["0", "-1"])
 def test_non_positive_projection_days_returns_rc2(monkeypatch, capsys, value):
     monkeypatch.setenv("PROJECTION_DAYS", value)
