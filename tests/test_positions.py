@@ -173,6 +173,24 @@ def test_malformed_semiannual_interest_logged_even_when_coupon_out_of_window(tmp
     assert any("bad semiannual_interest" in e for e in exc), exc
 
 
+def test_partially_malformed_coupon_schedule_is_rejected(tmp_path):
+    csv_path = tmp_path / "bad_coupon_date.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Bad Schedule,XS0,20250101,100,5.00,2030,"
+        "100.00,10000.00,1000.00,500.00,5,5,4/30;not-a-date\n",
+        encoding="utf-8",
+    )
+
+    snap, exc = load_positions(csv_path, today=TODAY)
+
+    assert snap is not None
+    assert snap.next_coupon is None
+    assert "positions row 2: bad coupon date 'not-a-date'" in exc
+
+
 def _quotes(**by_isin: str) -> dict[str, PricePoint]:
     return {
         isin: PricePoint(price=Decimal(price), as_of=date(2026, 4, 24))

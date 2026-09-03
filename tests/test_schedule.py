@@ -60,6 +60,21 @@ def test_bond_coupons_expand_from_positions(tmp_path):
     assert not e.is_estimate
 
 
+def test_partially_malformed_coupon_schedule_is_not_projected(tmp_path):
+    positions = _write(
+        tmp_path,
+        "positions.csv",
+        POSITIONS_HEADER
+        + "bond,Bad Schedule,US91324PFK30,,1000,5.50,2044,"
+        "100.00,100000.00,1000.00,500.00,5.50,5.50,9/15;bad\n",
+    )
+
+    proj, exc = project_cashflows(positions, tmp_path / "nope.csv", TODAY)
+
+    assert proj.events == []
+    assert exc == ["schedule: positions row 2: bad coupon date 'bad'"]
+
+
 def test_recurring_monthly_with_end_date(tmp_path):
     recurring = _write(
         tmp_path,

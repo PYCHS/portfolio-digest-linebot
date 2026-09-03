@@ -26,6 +26,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from ..models import CashflowEvent, Projection
+from .coupon_dates import parse_coupon_month_days
 
 RECURRING_HEADER = [
     "label",
@@ -207,7 +208,7 @@ def _load_position_coupon_events(
         return []
 
     events: list[CashflowEvent] = []
-    for row in rows:
+    for row_n, row in enumerate(rows, start=2):
         issuer = (row.get("issuer_or_name") or "").strip()
         coupon_dates = (row.get("coupon_dates") or "").strip()
         if not issuer or not coupon_dates:
@@ -227,16 +228,11 @@ def _load_position_coupon_events(
         annual = _dec("annual_interest")
         semi = _dec("semiannual_interest")
 
-        mds: list[tuple[int, int]] = []
-        for part in coupon_dates.split(";"):
-            part = part.strip()
-            if not part:
-                continue
-            try:
-                m_s, d_s = part.split("/")
-                mds.append((int(m_s), int(d_s)))
-            except ValueError:
-                continue
+        try:
+            mds = parse_coupon_month_days(coupon_dates)
+        except ValueError as exc:
+            exceptions.append(f"schedule: positions row {row_n}: {exc}")
+            continue
         if not mds:
             continue
 

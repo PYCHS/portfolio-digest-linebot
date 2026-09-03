@@ -6,6 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 
 from ..models import Coupon, HoldingPrice, PricePoint, Snapshot
+from .coupon_dates import parse_coupon_month_days
 
 REQUIRED_COLUMNS = {
     "instrument_type",
@@ -40,19 +41,17 @@ def _parse_decimal_field(
 
 def _next_occurrences(coupon_dates: str, today: Date) -> list[Date]:
     out: list[Date] = []
-    for raw in coupon_dates.split(";"):
-        raw = raw.strip()
-        if not raw:
-            continue
-        try:
-            m_s, d_s = raw.split("/")
-            m, d = int(m_s), int(d_s)
-            candidate = Date(today.year, m, d)
-            if candidate < today:
-                candidate = Date(today.year + 1, m, d)
-        except (ValueError, KeyError):
-            continue
-        out.append(candidate)
+    for month, day in parse_coupon_month_days(coupon_dates):
+        # Search through the next leap cycle so a legitimate 2/29 schedule
+        # still finds its next occurrence from a non-leap year.
+        for year in range(today.year, today.year + 5):
+            try:
+                candidate = Date(year, month, day)
+            except ValueError:
+                continue
+            if candidate >= today:
+                out.append(candidate)
+                break
     return out
 
 
@@ -194,7 +193,11 @@ def load_positions(
 
         coupon_dates_raw = (row.get("coupon_dates") or "").strip()
         if coupon_dates_raw:
-            occurrences = _next_occurrences(coupon_dates_raw, today)
+            try:
+                occurrences = _next_occurrences(coupon_dates_raw, today)
+            except ValueError as exc:
+                exceptions.append(f"positions row {n}: {exc}")
+                continue
             in_window = [d for d in occurrences if today <= d <= window_end]
             if in_window:
                 amt = _per_coupon_amount(annual, semi, len(occurrences))
