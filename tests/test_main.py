@@ -225,6 +225,17 @@ def test_invalid_timezone_returns_rc2_without_traceback(monkeypatch, capsys):
     assert "Not/A_Real_Timezone" in err
 
 
+def test_non_normalized_timezone_returns_rc2_without_traceback(monkeypatch, capsys):
+    monkeypatch.setenv("TIMEZONE", "../Asia/Taipei")
+
+    rc = main(["--dry-run"])
+
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "invalid TIMEZONE" in err
+    assert "../Asia/Taipei" in err
+
+
 def test_invalid_log_level_returns_rc2_without_traceback(monkeypatch, capsys):
     monkeypatch.setenv("LOG_LEVEL", "verbose")
 

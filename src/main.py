@@ -220,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
     tz_name = os.environ.get("TIMEZONE", DEFAULT_TZ)
     try:
         now = _now_in_tz(tz_name)
-    except ZoneInfoNotFoundError:
+    except (ZoneInfoNotFoundError, ValueError):
         sys.stderr.write(f"error: invalid TIMEZONE: {tz_name!r}\n")
         return 2
 
