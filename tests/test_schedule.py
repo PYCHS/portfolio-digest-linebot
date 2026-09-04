@@ -122,6 +122,23 @@ def test_recurring_estimate_flag_is_case_insensitive(tmp_path):
     assert proj.events[0].is_estimate is True
 
 
+def test_unknown_recurring_estimate_flag_is_conservatively_marked(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "Typo payout,USD,500.00,once:2026-08-08,,,insurance,treu\n",
+    )
+
+    proj, exc = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
+
+    assert len(proj.events) == 1
+    assert proj.events[0].is_estimate is True
+    assert exc == [
+        "recurring row 2: unknown estimate flag 'treu'; treating as estimate"
+    ]
+
+
 def test_recurring_yearly_quarter_dates_and_once(tmp_path):
     recurring = _write(
         tmp_path,

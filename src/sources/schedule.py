@@ -176,7 +176,17 @@ def _load_recurring_events(
         if category not in CATEGORIES:
             exceptions.append(f"recurring row {n}: unknown category {raw[6]!r}")
             category = "other"
-        is_estimate = raw[7].strip().lower() in {"1", "true", "yes"}
+        estimate = raw[7].strip().lower()
+        if estimate in {"1", "true", "yes"}:
+            is_estimate = True
+        elif estimate in {"", "0", "false", "no"}:
+            is_estimate = False
+        else:
+            exceptions.append(
+                f"recurring row {n}: unknown estimate flag {raw[7]!r}; "
+                "treating as estimate"
+            )
+            is_estimate = True
         for d in dates:
             events.append(
                 CashflowEvent(
