@@ -16,5 +16,7 @@ def parse_coupon_month_days(value: str) -> list[tuple[int, int]]:
             Date(2000, month, day)  # leap year permits a legitimate 2/29
         except ValueError as exc:
             raise ValueError(f"bad coupon date {part!r}") from exc
+        if (month, day) in out:
+            raise ValueError(f"duplicate coupon date {part!r}")
         out.append((month, day))
     return out

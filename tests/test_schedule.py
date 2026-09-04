@@ -75,6 +75,18 @@ def test_partially_malformed_coupon_schedule_is_not_projected(tmp_path):
     assert exc == ["schedule: positions row 2: bad coupon date 'bad'"]
 
 
+def test_duplicate_coupon_dates_do_not_create_multiple_payments(tmp_path):
+    positions = _write(
+        tmp_path, "positions.csv", POSITIONS_HEADER
+        + "bond,Duplicate Dates,US91324PFK30,,1000,5,2044,"
+        "100,100000,1000,500,5,5,9/15;09/15\n",
+    )
+    proj, exc = project_cashflows(positions, tmp_path / "nope.csv", TODAY)
+    assert proj.events == []
+    assert proj.next_inflow is None
+    assert exc == ["schedule: positions row 2: duplicate coupon date '09/15'"]
+
+
 def test_recurring_monthly_with_end_date(tmp_path):
     recurring = _write(
         tmp_path,
