@@ -348,5 +348,10 @@ def fetch_news(
         )
 
     if persist_seen:
-        save_seen(seen_path, seen)
+        try:
+            save_seen(seen_path, seen)
+        except OSError as exc:
+            # Losing persistence may repeat headlines next run, but must not
+            # discard the news we successfully collected for this digest.
+            exceptions.append(f"news: dedup state save failed: {type(exc).__name__}")
     return items, exceptions

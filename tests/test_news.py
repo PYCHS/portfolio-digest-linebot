@@ -34,6 +34,20 @@ def test_happy_path_returns_one_item_per_enabled_issuer(requests_mock, tmp_path)
     assert items[1].source == "Reuters"
 
 
+def test_seen_write_failure_keeps_collected_news(requests_mock, tmp_path, monkeypatch):
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+
+    def fail_save(*args):
+        raise PermissionError("simulated read-only state directory")
+
+    monkeypatch.setattr("src.sources.news.save_seen", fail_save)
+    items, exc = fetch_news(WATCHLIST, tmp_path / "seen.json", now=NOW)
+
+    assert [i.issuer_id for i in items] == ["ACME", "BETA"]
+    assert exc == ["news: dedup state save failed: PermissionError"]
+
+
 def test_disabled_issuer_skipped(requests_mock, tmp_path):
     requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
     requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
