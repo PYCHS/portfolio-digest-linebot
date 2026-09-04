@@ -162,6 +162,19 @@ def test_recurring_bad_rows_reported_but_isolated(tmp_path):
     assert [e.label for e in proj.events] == ["Good"]
 
 
+def test_reversed_recurring_bounds_reported_but_outside_window_is_normal(tmp_path):
+    recurring = _write(
+        tmp_path, "recurring.csv", RECURRING_HEADER
+        + "Reversed,USD,10,monthly:8,2026-09-01,2026-08-01,coupon,0\n"
+        + "Expired,USD,10,monthly:8,,2026-07-01,coupon,0\n"
+        + "Future,USD,10,monthly:8,2030-01-01,,coupon,0\n"
+        + "Good,USD,10,once:2026-08-08,,,coupon,0\n",
+    )
+    proj, exc = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
+    assert exc == ["recurring row 2: start_date is after end_date"]
+    assert [e.label for e in proj.events] == ["Good"]
+
+
 def test_recurring_wrong_header_reported(tmp_path):
     recurring = _write(tmp_path, "recurring.csv", "a,b,c\n1,2,3\n")
     proj, exc = project_cashflows(

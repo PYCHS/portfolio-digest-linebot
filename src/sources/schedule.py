@@ -155,13 +155,16 @@ def _load_recurring_events(
             exceptions.append(f"recurring row {n}: bad amount {raw[2]!r}")
             continue
         try:
-            start = _parse_iso(raw[4]) or today
-            end = _parse_iso(raw[5]) or horizon_end
+            start = _parse_iso(raw[4])
+            end = _parse_iso(raw[5])
         except ValueError:
             exceptions.append(f"recurring row {n}: bad start/end date")
             continue
-        lo = max(today, start)
-        hi = min(horizon_end, end)
+        if start is not None and end is not None and start > end:
+            exceptions.append(f"recurring row {n}: start_date is after end_date")
+            continue
+        lo = max(today, start or today)
+        hi = min(horizon_end, end or horizon_end)
         if lo > hi:
             continue
         try:
