@@ -82,7 +82,7 @@ def _setup_http(requests_mock) -> None:
             "<item>"
             "<title>ACME Q1 results in line with guidance</title>"
             "<link>https://acme.com/q1</link>"
-            "<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate>"
+            "<pubDate>Sat, 25 Apr 2026 02:00:00 +0000</pubDate>"
             "</item>"
             "</channel></rss>"
         ),

@@ -278,7 +278,7 @@ def fetch_news(
             if not title:
                 continue
             ts = _entry_published(entry)
-            if ts is None or ts < cutoff:
+            if ts is None or not cutoff <= ts <= now:
                 n_stale += 1
                 continue
             if is_duplicate(title, seen, threshold=threshold):

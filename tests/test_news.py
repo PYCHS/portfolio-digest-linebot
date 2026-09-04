@@ -53,6 +53,26 @@ def test_lookback_filter_excludes_old_items(requests_mock, tmp_path):
     assert all("minor product update" not in i.summary for i in items)
 
 
+def test_future_publication_is_not_consumed_before_it_is_due(requests_mock, tmp_path):
+    rss = _read("rss_acme.xml").replace(
+        "Sat, 25 Apr 2026 10:00:00 +0000",
+        "Sun, 26 Apr 2026 10:00:00 +0000",
+    )
+    requests_mock.get(ACME_RSS_URL, text=rss)
+    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+    seen = tmp_path / "seen.json"
+
+    items, exc = fetch_news(WATCHLIST, seen, now=NOW)
+    assert exc == []
+    assert all(i.issuer_id != "ACME" for i in items)
+
+    # Reaching the publication time must still allow this headline through:
+    # rejecting it earlier must not have consumed its dedup entry.
+    items, exc = fetch_news(WATCHLIST, seen, now=NOW + timedelta(days=1))
+    assert exc == []
+    assert any(i.issuer_id == "ACME" for i in items)
+
+
 def test_dedup_across_runs_returns_no_acme_item_on_second_run(requests_mock, tmp_path):
     requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
     requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
