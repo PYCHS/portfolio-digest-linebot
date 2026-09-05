@@ -131,7 +131,7 @@ def _load_recurring_events(
                 exceptions.append(f"recurring: unexpected header {header!r}")
                 return []
             rows = list(reader)
-    except OSError as e:
+    except (OSError, UnicodeError) as e:
         exceptions.append(f"recurring: read error: {e}")
         return []
 
@@ -216,7 +216,7 @@ def _load_position_coupon_events(
         with path.open(encoding="utf-8-sig", newline="") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
-    except OSError as e:
+    except (OSError, UnicodeError) as e:
         exceptions.append(f"schedule: positions read error: {e}")
         return []
 
