@@ -212,6 +212,27 @@ def test_recurring_bad_rows_reported_but_isolated(tmp_path):
     assert [e.label for e in proj.events] == ["Good"]
 
 
+def test_empty_and_impossible_yearly_schedules_are_reported(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "Empty yearly,USD,10,yearly:,,,coupon,0\n"
+        + "Impossible date,USD,10,yearly:2/30,,,coupon,0\n"
+        + "Good leap day,USD,10,yearly:2/29,,,coupon,0\n",
+    )
+
+    proj, exc = project_cashflows(
+        tmp_path / "nope.csv", recurring, date(2028, 1, 1), horizon_days=90
+    )
+
+    assert [e.label for e in proj.events] == ["Good leap day"]
+    assert exc == [
+        "recurring row 2: yearly schedule has no dates",
+        "recurring row 3: bad yearly date '2/30'",
+    ]
+
+
 def test_reversed_recurring_bounds_reported_but_outside_window_is_normal(tmp_path):
     recurring = _write(
         tmp_path, "recurring.csv", RECURRING_HEADER

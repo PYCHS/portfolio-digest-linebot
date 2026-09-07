@@ -76,16 +76,26 @@ def _monthly_occurrences(day: int, lo: Date, hi: Date) -> list[Date]:
 
 def _yearly_occurrences(md_list: str, lo: Date, hi: Date) -> list[Date]:
     out: list[Date] = []
+    found_date = False
     for raw in md_list.split(";"):
         raw = raw.strip()
         if not raw:
             continue
-        m_s, d_s = raw.split("/")
-        m, d = int(m_s), int(d_s)
+        found_date = True
+        try:
+            m_s, d_s = raw.split("/")
+            m, d = int(m_s), int(d_s)
+        except (TypeError, ValueError):
+            raise ValueError(f"bad yearly date {raw!r}") from None
+        # Use a leap year so 2/29 remains a valid annual schedule.
+        if _safe_date(2000, m, d) is None:
+            raise ValueError(f"bad yearly date {raw!r}")
         for year in range(lo.year, hi.year + 1):
             cand = _safe_date(year, m, d)
             if cand and lo <= cand <= hi:
                 out.append(cand)
+    if not found_date:
+        raise ValueError("yearly schedule has no dates")
     return out
 
 
