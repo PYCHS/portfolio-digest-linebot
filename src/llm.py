@@ -25,6 +25,10 @@ DEFAULT_MODEL = "claude-haiku-4-5"
 DEFAULT_TIMEOUT = 45.0
 # Headroom for the per-item JSON plus a 150-250 character overall paragraph.
 MAX_TOKENS = 2500
+# Keep a malformed model response from consuming LINE's entire 5,000-character
+# message budget. The prompt asks for 150–250 characters, so this leaves ample
+# tolerance without allowing an unbounded paragraph to block the whole digest.
+MAX_OVERALL_CHARS = 1000
 
 VALID_IMPACTS = {"利多", "利空", "中性", "無影響"}
 
@@ -128,6 +132,8 @@ def analyze_news(
         if raw_overall is not None and not isinstance(raw_overall, str):
             raise TypeError("LLM output overall_zh must be a string")
         overall = (raw_overall.strip() or None) if raw_overall else None
+        if overall is not None and len(overall) > MAX_OVERALL_CHARS:
+            raise ValueError("LLM output overall_zh is too long")
     except (
         requests.RequestException,
         json.JSONDecodeError,

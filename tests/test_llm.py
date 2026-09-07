@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.llm import API_URL, analyze_news
+from src.llm import API_URL, MAX_OVERALL_CHARS, analyze_news
 from src.models import NewsItem
 
 ITEMS = [
@@ -175,6 +175,20 @@ def test_wrong_output_types_return_originals(requests_mock, field, value):
     assert out == ITEMS
     assert overall is None
     assert exc == ["llm: TypeError"]
+
+
+def test_overlong_overview_returns_originals_before_line_push(requests_mock):
+    body = _ok_response()
+    payload = json.loads(body["content"][0]["text"])
+    payload["overall_zh"] = "過" * (MAX_OVERALL_CHARS + 1)
+    body["content"][0]["text"] = json.dumps(payload, ensure_ascii=False)
+    requests_mock.post(API_URL, json=body)
+
+    out, overall, exc = analyze_news(ITEMS, api_key="k")
+
+    assert out == ITEMS
+    assert overall is None
+    assert exc == ["llm: ValueError"]
 
 
 def test_empty_news_short_circuits_without_network(requests_mock):
