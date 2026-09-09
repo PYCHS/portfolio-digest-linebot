@@ -63,6 +63,20 @@ def test_prior_day_returns_same_date_renders_dod_none(requests_mock):
     assert fx.usd_chf_dod_pct is None
 
 
+def test_prior_endpoint_future_date_does_not_create_reversed_comparison(
+    requests_mock,
+):
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-26", "rates": {"CHF": 0.9000}})
+
+    fx, exc = fetch_fx()
+
+    assert exc == []
+    assert fx is not None
+    assert fx.usd_chf == Decimal("0.9123")
+    assert fx.usd_chf_dod_pct is None
+
+
 def test_prior_day_network_error_preserves_today_rate(monkeypatch, requests_mock):
     monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})

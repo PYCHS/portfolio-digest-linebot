@@ -107,7 +107,7 @@ def fetch_fx(
     dod_pct: Decimal | None = None
     try:
         date_y, prior_rate = _fetch(base_url, target, timeout)
-        if date_y != date_t and prior_rate != 0:
+        if date_y < date_t and prior_rate != 0:
             dod_pct = (
                 (usd_chf - prior_rate) / prior_rate * Decimal(100)
             ).quantize(PCT_QUANTUM, rounding=ROUND_HALF_UP)
