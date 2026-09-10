@@ -82,9 +82,21 @@ def load_prices(path: Path) -> tuple[dict[str, PricePoint] | None, list[str]]:
         if raw_as_of:
             as_of = _parse_as_of(raw_as_of, n, exceptions)
 
-        # Last row wins, so appending a fresh quote to the bottom of the file
-        # does what it looks like it does. The duplicate is still reported.
+        # Last row normally wins, so appending a fresh quote does what it looks
+        # like it does. When both rows are dated, however, do not let an older
+        # row pasted at the bottom replace a demonstrably newer quote.
         if isin in out:
+            previous = out[isin]
+            if (
+                previous.as_of is not None
+                and as_of is not None
+                and as_of < previous.as_of
+            ):
+                exceptions.append(
+                    f"prices: duplicate {isin} "
+                    f"(keeping newer {previous.as_of.isoformat()})"
+                )
+                continue
             exceptions.append(f"prices: duplicate {isin} (using last)")
         out[isin] = PricePoint(price=price, as_of=as_of)
 

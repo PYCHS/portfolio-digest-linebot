@@ -69,6 +69,24 @@ def test_duplicate_isin_takes_the_last_row_and_says_so():
     assert exc == ["prices: duplicate XS0000000001 (using last)"]
 
 
+def test_older_duplicate_does_not_replace_newer_dated_quote(tmp_path):
+    path = tmp_path / "prices.csv"
+    path.write_text(
+        "isin_or_code,price,as_of\n"
+        "XS0000000001,99.5000,2026-04-24\n"
+        "XS0000000001,98.0000,2026-04-20\n",
+        encoding="utf-8",
+    )
+
+    prices, exc = load_prices(path)
+
+    assert prices["XS0000000001"].price == Decimal("99.5000")
+    assert prices["XS0000000001"].as_of == date(2026, 4, 24)
+    assert exc == [
+        "prices: duplicate XS0000000001 (keeping newer 2026-04-24)"
+    ]
+
+
 def test_compact_and_slash_date_formats_are_accepted():
     prices, exc = load_prices(FIXTURES / "prices_alt_date_formats.csv")
     assert exc == []
