@@ -238,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
 
     token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
     group_id = os.environ.get("LINE_GROUP_ID", "")
-    if args.push and (not token or not group_id):
+    if args.push and (not token.strip() or not group_id.strip()):
         sys.stderr.write(
             "error: --push requires LINE_CHANNEL_ACCESS_TOKEN and LINE_GROUP_ID in env.\n"
         )

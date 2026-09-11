@@ -180,6 +180,27 @@ def test_push_without_required_env_returns_rc2(
     assert not paths["seen"].exists()
 
 
+@pytest.mark.parametrize(
+    ("token", "group_id"),
+    [("   ", "C-test-group"), ("test-token", "\t  ")],
+)
+def test_push_with_blank_credentials_fails_before_collecting(
+    tmp_path, monkeypatch, requests_mock, capsys, token, group_id
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", token)
+    monkeypatch.setenv("LINE_GROUP_ID", group_id)
+
+    rc = main(["--push"])
+
+    assert rc == 2
+    assert "LINE_CHANNEL_ACCESS_TOKEN" in capsys.readouterr().err
+    assert requests_mock.request_history == []
+    assert not paths["seen"].exists()
+
+
 def test_push_failure_returns_rc3(
     tmp_path, monkeypatch, requests_mock, capsys
 ):
