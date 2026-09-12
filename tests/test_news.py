@@ -519,6 +519,38 @@ def test_direct_feeds_are_fetched_in_parallel(monkeypatch, tmp_path):
     assert {i.issuer_id for i in items} == {"A", "B", "C", "D"}
 
 
+def test_malformed_entry_text_does_not_discard_valid_news(monkeypatch, tmp_path):
+    """Untrusted feed fields may decode to collections instead of strings.
+    One malformed item must not abort collection of later valid headlines."""
+    from src.sources import news as news_mod
+
+    fresh_pubdate = (NOW - timedelta(hours=1)).utctimetuple()
+
+    def fetch_entries(url: str, timeout: float):
+        return [
+            {"title": ["not", "text"], "published_parsed": fresh_pubdate},
+            {
+                "title": "  Valid headline survives  ",
+                "link": {"href": "https://invalid.example/item"},
+                "published_parsed": fresh_pubdate,
+            },
+        ]
+
+    monkeypatch.setattr(news_mod, "_fetch_entries", fetch_entries)
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n  - id: ACME\n    rss: [https://example.com/feed.rss]\n",
+        encoding="utf-8",
+    )
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+
+    assert exc == []
+    assert [item.summary for item in items] == ["Valid headline survives"]
+    assert items[0].source == "example.com"
+    assert items[0].link is None
+
+
 def test_persist_seen_false_does_not_write_seen_file_and_yields_repeatable_items(
     requests_mock, tmp_path
 ):

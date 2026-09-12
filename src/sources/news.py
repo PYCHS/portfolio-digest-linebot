@@ -92,13 +92,18 @@ def _entry_published(entry: dict[str, Any]) -> datetime | None:
         return None
 
 
+def _entry_text(entry: dict[str, Any], key: str) -> str:
+    value = entry.get(key)
+    return value.strip() if isinstance(value, str) else ""
+
+
 def _entry_source(entry: dict[str, Any], fallback_url: str) -> str:
     src = entry.get("source")
     if isinstance(src, dict):
         title = src.get("title")
-        if title:
-            return title
-    link = entry.get("link") or fallback_url
+        if isinstance(title, str) and title.strip():
+            return title.strip()
+    link = _entry_text(entry, "link") or fallback_url
     netloc = urlparse(link).netloc
     return netloc or fallback_url
 
@@ -274,7 +279,7 @@ def fetch_news(
         n_stale = 0
         n_dup = 0
         for entry, src_url in candidate_entries:
-            title = (entry.get("title") or "").strip()
+            title = _entry_text(entry, "title")
             if not title:
                 continue
             ts = _entry_published(entry)
@@ -307,7 +312,7 @@ def fetch_news(
         for entry, src_url, is_alert, matched_kw in eligible:
             if shown >= max_per_issuer:
                 break
-            title = (entry.get("title") or "").strip()
+            title = _entry_text(entry, "title")
             # Guard against displaying two near-identical headlines when the
             # cap is > 1 (the first appended makes the second look duplicate).
             if is_duplicate(title, seen, threshold=threshold):
@@ -319,7 +324,7 @@ def fetch_news(
                     summary=title,
                     source=_entry_source(entry, src_url),
                     is_alert=is_alert,
-                    link=(entry.get("link") or None),
+                    link=_entry_text(entry, "link") or None,
                 )
             )
             if is_alert and matched_kw:
