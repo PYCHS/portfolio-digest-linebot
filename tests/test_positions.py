@@ -98,6 +98,17 @@ def test_missing_file_returns_full_gap():
     assert exc == ["positions: file not found"]
 
 
+def test_invalid_utf8_returns_full_gap(tmp_path):
+    path = tmp_path / "positions.csv"
+    path.write_bytes(b"instrument_type,issuer_or_name\n\xff")
+
+    snap, exc = load_positions(path, today=TODAY)
+
+    assert snap is None
+    assert len(exc) == 1
+    assert exc[0].startswith("positions: read error:")
+
+
 def test_bad_rows_logged_and_buy_price_failure_treats_row_as_uncosted():
     snap, exc = load_positions(FIXTURES / "positions_bad_data.csv", today=TODAY)
     assert snap is not None
