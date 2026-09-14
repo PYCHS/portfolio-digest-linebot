@@ -85,7 +85,7 @@ Quotes are fetched fresh each run (see `src/sources/quotes.py`): Public.com for 
 | `TIMEZONE` | Always `Asia/Taipei` for this bot |
 | `WATCHLIST_PATH` / `LEDGER_PATH` / `POSITIONS_PATH` / `NEWS_SEEN_PATH` | Override default file locations |
 | `PRICES_PATH` | Fallback quote CSV (default `private/prices.csv`) |
-| `FETCH_QUOTES` | `0` disables the live quote fetch and runs off `prices.csv` alone (default on) |
+| `FETCH_QUOTES` | `false`/`0` disables live quote fetching and uses `prices.csv` alone (default `true`) |
 | `RECURRING_PATH` | Recurring-cashflow CSV (default `private/recurring.csv`) |
 | `PROJECTION_DAYS` | Projected-cashflow horizon in days (default `60`) |
 | `ANTHROPIC_API_KEY` | Enables M10 LLM news analysis; unset = plain headlines |

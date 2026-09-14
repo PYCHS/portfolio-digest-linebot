@@ -23,6 +23,8 @@ from .sources.schedule import project_cashflows
 
 DEFAULT_TZ = "Asia/Taipei"
 log = logging.getLogger(__name__)
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+_FALSE_VALUES = {"0", "false", "no", "off"}
 
 
 def _restore_file(path: Path, *, existed: bool, content: bytes) -> None:
@@ -42,6 +44,15 @@ def _restore_file(path: Path, *, existed: bool, content: bytes) -> None:
 def _now_in_tz(tz_name: str) -> datetime:
     """Return current wall-clock time in the given IANA timezone."""
     return datetime.now(tz=ZoneInfo(tz_name))
+
+
+def _parse_bool_env(name: str, default: str) -> bool:
+    raw = os.environ.get(name, default).strip().lower()
+    if raw in _TRUE_VALUES:
+        return True
+    if raw in _FALSE_VALUES:
+        return False
+    raise ValueError(f"invalid {name}: {raw!r} (use true/false or 1/0)")
 
 
 def build_digest(
@@ -236,6 +247,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    try:
+        fetch_live_quotes = _parse_bool_env("FETCH_QUOTES", "1")
+    except ValueError as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        return 2
+
     token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
     group_id = os.environ.get("LINE_GROUP_ID", "")
     if args.push and (not token.strip() or not group_id.strip()):
@@ -272,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         ledger_path=Path(os.environ.get("LEDGER_PATH", "private/ledger.csv")),
         positions_path=Path(os.environ.get("POSITIONS_PATH", "private/positions.csv")),
         prices_path=Path(os.environ.get("PRICES_PATH", "private/prices.csv")),
-        fetch_live_quotes=os.environ.get("FETCH_QUOTES", "1") != "0",
+        fetch_live_quotes=fetch_live_quotes,
         # Only --push commits dedup state. Previews (default and --dry-run)
         # leave seen.json untouched so re-running yields the same items.
         persist_seen=args.push,

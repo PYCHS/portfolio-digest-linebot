@@ -430,3 +430,29 @@ def test_quotes_can_be_switched_off_entirely(
     out = capsys.readouterr().out
     assert "120.00" in out
     assert not any("public.com" in r.url for r in requests_mock.request_history)
+
+
+def test_quotes_accepts_false_as_disabled(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    _quotable_files(tmp_path, monkeypatch, "US260543BY86,120.0000,2026-04-01\n")
+    monkeypatch.setenv("FETCH_QUOTES", "false")
+
+    assert main(["--dry-run"]) == 0
+    assert "120.00" in capsys.readouterr().out
+    assert not any("public.com" in r.url for r in requests_mock.request_history)
+
+
+def test_invalid_fetch_quotes_exits_before_collecting(monkeypatch, capsys):
+    monkeypatch.setenv("FETCH_QUOTES", "sometimes")
+    monkeypatch.setattr(
+        main_module,
+        "build_digest",
+        lambda **kwargs: pytest.fail("collectors should not run"),
+    )
+
+    assert main(["--dry-run"]) == 2
+    assert "invalid FETCH_QUOTES" in capsys.readouterr().err
