@@ -280,6 +280,8 @@ def test_generate_greeting_splices_quote_back_when_model_drops_it(requests_mock)
     assert exc == []
     assert quote_of_the_day(today) in text
     assert text.splitlines()[1] == quote_of_the_day(today)
+    assert len(text.splitlines()) == 3
+    assert "加油！" not in text
 
 
 def test_generate_greeting_api_error_falls_back(requests_mock):

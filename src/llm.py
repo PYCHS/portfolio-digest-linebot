@@ -261,16 +261,21 @@ def fallback_greeting(today: "Date") -> str:
 
 
 def _ensure_quote(text: str, quote: str) -> str:
-    """Splice the day's quote back in if the model paraphrased or dropped it.
+    """Restore the day's quote if the model paraphrased or dropped it.
 
     The quote is the one part we don't want the model improvising on — a
     misattributed 名言 is worse than no 名言 — so this is a cheap guarantee
-    rather than a reason to discard an otherwise good greeting.
+    rather than a reason to discard an otherwise good greeting. Replace the
+    intended second line instead of inserting a fourth line into the fixed
+    three-line format.
     """
     if quote in text:
         return text
     lines = [ln for ln in text.splitlines() if ln.strip()]
-    lines.insert(1 if len(lines) >= 2 else len(lines), quote)
+    if len(lines) >= 2:
+        lines[1] = quote
+    else:
+        lines.append(quote)
     return "\n".join(lines)
 
 
