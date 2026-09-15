@@ -85,6 +85,7 @@ def _fetch_twd(url: str, timeout: float) -> Decimal:
 
 def fetch_fx(
     *,
+    today: Date | None = None,
     base_url: str = DEFAULT_BASE_URL,
     twd_url: str = DEFAULT_TWD_URL,
     timeout: float = DEFAULT_TIMEOUT,
@@ -102,6 +103,12 @@ def fetch_fx(
         date_t, usd_chf = _fetch(base_url, "latest", timeout)
     except _FETCH_ERRORS as e:
         return None, [f"fx: latest fetch failed: {type(e).__name__}"]
+    digest_date = today or Date.today()
+    if date_t > digest_date:
+        return None, [
+            f"fx: latest date {date_t.isoformat()} is after "
+            f"digest date {digest_date.isoformat()}"
+        ]
 
     target = (date_t - timedelta(days=1)).isoformat()
     dod_pct: Decimal | None = None

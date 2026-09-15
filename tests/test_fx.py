@@ -77,6 +77,23 @@ def test_prior_endpoint_future_date_does_not_create_reversed_comparison(
     assert fx.usd_chf_dod_pct is None
 
 
+def test_latest_future_date_is_rejected_before_other_requests(requests_mock):
+    requests_mock.get(
+        LATEST,
+        json={"date": "2026-04-26", "rates": {"CHF": 0.9123}},
+    )
+
+    fx, exc = fetch_fx(today=date(2026, 4, 25))
+
+    assert fx is None
+    assert exc == [
+        "fx: latest date 2026-04-26 is after digest date 2026-04-25"
+    ]
+    assert [request.url for request in requests_mock.request_history] == [
+        LATEST + "?from=USD&to=CHF"
+    ]
+
+
 def test_prior_day_network_error_preserves_today_rate(monkeypatch, requests_mock):
     monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})

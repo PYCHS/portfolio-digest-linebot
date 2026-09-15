@@ -130,7 +130,7 @@ def build_digest(
             exceptions.append(f"llm: unexpected {type(e).__name__}")
 
     try:
-        fx, fx_exc = fetch_fx()
+        fx, fx_exc = fetch_fx(today=today)
         exceptions.extend(fx_exc)
     except Exception as e:
         log.exception("fx collector raised")
