@@ -186,7 +186,12 @@ def fetch_news(
     # ---- Planning pass: build per-issuer plans without doing any I/O. ----
     plans: list[dict[str, Any]] = []
     for issuer in issuers:
-        if not isinstance(issuer, dict) or not issuer.get("enabled", True):
+        if not isinstance(issuer, dict):
+            continue
+        enabled = issuer.get("enabled", True)
+        if isinstance(enabled, str):
+            enabled = enabled.strip().lower() not in {"false", "no", "0", "off"}
+        if not enabled:
             continue
         # `id` is the canonical label; fall back to `name` so an issuer without
         # an explicit id still produces a usable digest line and isn't silently

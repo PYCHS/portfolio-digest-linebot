@@ -58,6 +58,26 @@ def test_disabled_issuer_skipped(requests_mock, tmp_path):
     assert "GAMMA" not in {i.issuer_id for i in items}
 
 
+@pytest.mark.parametrize("disabled_value", ['"false"', '"no"', '"0"', '"off"'])
+def test_disabled_issuer_string_values_skip_requests(
+    disabled_value, requests_mock, tmp_path
+):
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: ACME\n"
+        f"    enabled: {disabled_value}\n"
+        f"    rss: {ACME_RSS_URL}\n",
+        encoding="utf-8",
+    )
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+
+    assert items == []
+    assert exc == []
+    assert requests_mock.call_count == 0
+
+
 def test_lookback_filter_excludes_old_items(requests_mock, tmp_path):
     requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
     requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
