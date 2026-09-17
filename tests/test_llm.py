@@ -215,6 +215,7 @@ from datetime import timedelta
 
 from src.llm import (
     GREETING_JOKES,
+    MAX_GREETING_CHARS,
     QUOTES,
     fallback_greeting,
     generate_greeting,
@@ -304,3 +305,16 @@ def test_generate_greeting_non_string_text_falls_back(requests_mock, invalid_tex
 
     assert text == fallback_greeting(today)
     assert exc == ["llm greeting: TypeError"]
+
+
+def test_generate_greeting_over_line_budget_falls_back(requests_mock):
+    requests_mock.post(
+        API_URL,
+        json={"content": [{"type": "text", "text": "早" * (MAX_GREETING_CHARS + 1)}]},
+    )
+    today = date(2026, 8, 4)
+
+    text, exc = generate_greeting(today, api_key="k")
+
+    assert text == fallback_greeting(today)
+    assert exc == ["llm greeting: ValueError"]

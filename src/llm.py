@@ -29,6 +29,9 @@ MAX_TOKENS = 2500
 # message budget. The prompt asks for 150–250 characters, so this leaves ample
 # tolerance without allowing an unbounded paragraph to block the whole digest.
 MAX_OVERALL_CHARS = 1000
+# A greeting should be three short lines. Bound malformed model output so it
+# cannot crowd the actual portfolio data out of LINE's 5,000-character limit.
+MAX_GREETING_CHARS = 1000
 
 VALID_IMPACTS = {"利多", "利空", "中性", "無影響"}
 
@@ -322,6 +325,8 @@ def generate_greeting(
         text = text.strip()
         if not text:
             raise ValueError("empty greeting")
+        if len(text) > MAX_GREETING_CHARS:
+            raise ValueError("greeting too long")
         return _ensure_quote(text, quote), []
     except (
         requests.RequestException,
