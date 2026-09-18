@@ -26,6 +26,17 @@ def test_missing_file_is_a_silent_opt_out():
     assert exc == []
 
 
+def test_invalid_utf8_returns_a_read_error(tmp_path):
+    path = tmp_path / "prices.csv"
+    path.write_bytes(b"isin_or_code,price\nXS0000000001,99.25\xff\n")
+
+    prices, exc = load_prices(path)
+
+    assert prices is None
+    assert len(exc) == 1
+    assert exc[0].startswith("prices: read error:")
+
+
 def test_missing_required_columns_is_reported():
     prices, exc = load_prices(FIXTURES / "prices_missing_columns.csv")
     assert prices is None

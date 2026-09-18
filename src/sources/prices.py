@@ -52,7 +52,7 @@ def load_prices(path: Path) -> tuple[dict[str, PricePoint] | None, list[str]]:
             if missing:
                 return None, [f"prices: missing columns {sorted(missing)}"]
             rows = list(reader)
-    except OSError as e:
+    except (OSError, UnicodeError) as e:
         return None, [f"prices: read error: {e}"]
 
     has_as_of = "as_of" in fieldnames
