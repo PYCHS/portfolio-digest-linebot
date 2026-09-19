@@ -127,6 +127,18 @@ def test_today_missing_rate_key_returns_full_gap(requests_mock):
     assert exc and "fx: latest fetch failed" in exc[0]
 
 
+def test_non_string_latest_date_returns_full_gap_without_more_requests(requests_mock):
+    requests_mock.get(LATEST, json={"date": 20260425, "rates": {"CHF": 0.9123}})
+
+    fx, exc = fetch_fx()
+
+    assert fx is None
+    assert exc == ["fx: latest fetch failed: TypeError"]
+    assert [request.url for request in requests_mock.request_history] == [
+        LATEST + "?from=USD&to=CHF"
+    ]
+
+
 def test_connection_error_on_today_returns_full_gap(monkeypatch, requests_mock):
     monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, exc=requests.exceptions.ConnectionError)

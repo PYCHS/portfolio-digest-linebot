@@ -26,7 +26,13 @@ FETCH_MAX_ATTEMPTS = 2
 FETCH_RETRY_BACKOFF_SEC = 0.5
 
 
-_FETCH_ERRORS = (requests.RequestException, KeyError, ValueError, InvalidOperation)
+_FETCH_ERRORS = (
+    requests.RequestException,
+    KeyError,
+    TypeError,
+    ValueError,
+    InvalidOperation,
+)
 
 
 def _fetch(base_url: str, segment: str, timeout: float) -> tuple[Date, Decimal]:
