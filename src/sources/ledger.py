@@ -42,7 +42,7 @@ def load_ledger(
             if [h.strip() for h in header] != EXPECTED_HEADER:
                 return None, [f"ledger: unexpected header {header!r}"]
             rows = list(reader)
-    except OSError as e:
+    except (OSError, UnicodeError) as e:
         return None, [f"ledger: read error: {e}"]
 
     exceptions: list[str] = []

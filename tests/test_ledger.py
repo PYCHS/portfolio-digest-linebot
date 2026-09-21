@@ -64,6 +64,20 @@ def test_empty_file_returns_gap(tmp_path):
     assert exc == ["ledger: empty file"]
 
 
+def test_invalid_utf8_returns_a_read_error(tmp_path):
+    path = tmp_path / "ledger.csv"
+    path.write_bytes(
+        b"date,amount,currency,category,description\n"
+        b"2026-04-25,55.00,USD,coupon,invalid\xff\n"
+    )
+
+    cf, exc = load_ledger(path, today=TODAY)
+
+    assert cf is None
+    assert len(exc) == 1
+    assert exc[0].startswith("ledger: read error:")
+
+
 def test_header_only_returns_zero_cashflow():
     cf, exc = load_ledger(FIXTURES / "ledger_header_only.csv", today=TODAY)
     assert cf is not None
