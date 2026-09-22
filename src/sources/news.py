@@ -97,6 +97,14 @@ def _entry_text(entry: dict[str, Any], key: str) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _entry_is_fresh(entry: dict[str, Any], cutoff: datetime, now: datetime) -> bool:
+    """Return whether an entry can satisfy the configured news window."""
+    if not _entry_text(entry, "title"):
+        return False
+    published = _entry_published(entry)
+    return published is not None and cutoff <= published <= now
+
+
 def _entry_source(entry: dict[str, Any], fallback_url: str) -> str:
     src = entry.get("source")
     if isinstance(src, dict):
@@ -239,15 +247,21 @@ def fetch_news(
     fetched_direct = _fetch_all(direct_urls, timeout)
 
     # ---- Phase 2: parallel-fetch GN URLs only for issuers whose direct feeds
-    # yielded zero entries (preserves the original "GN as fallback" semantics
-    # so we don't change which item wins the per-issuer slot). ----
+    # yielded no fresh entries. A healthy feed commonly keeps old articles;
+    # their presence must not suppress the fallback when every item falls
+    # outside today's lookback window. ----
     needs_gn: set[str] = set()
     for p in plans:
-        has_entries = any(
-            isinstance(fetched_direct.get(u), list) and fetched_direct[u]
+        has_fresh_entries = any(
+            isinstance(fetched_direct.get(u), list)
+            and any(
+                _entry_is_fresh(entry, cutoff, now)
+                for entry in fetched_direct[u]
+            )
             for u in p["configured_urls"]
         )
-        if not has_entries:
+        p["use_gn"] = not has_fresh_entries
+        if p["use_gn"]:
             needs_gn.add(p["gn_url"])
     fetched_gn = _fetch_all(needs_gn, timeout)
 
@@ -264,7 +278,10 @@ def fetch_news(
                 continue
             for entry in (res or []):
                 candidate_entries.append((entry, url))
-        if not candidate_entries:
+        # `fetched_gn` only contains this URL when the direct feeds had no
+        # fresh entries. Keep stale direct entries in the candidate list so
+        # the diagnostic counters still explain why fallback was needed.
+        if p["use_gn"]:
             res = fetched_gn.get(p["gn_url"])
             if isinstance(res, Exception):
                 exceptions.append(
