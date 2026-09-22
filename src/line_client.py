@@ -1,12 +1,17 @@
 """Thin wrapper around the LINE Messaging API push-message endpoint."""
 from __future__ import annotations
 
+import time
+from uuid import uuid4
+
 import requests
 
 DEFAULT_BASE_URL = "https://api.line.me"
 PUSH_PATH = "/v2/bot/message/push"
 DEFAULT_TIMEOUT = 10.0
 LINE_TEXT_LIMIT = 5000  # LINE's per-text-message character cap
+MAX_ATTEMPTS = 2
+RETRY_BACKOFF_SEC = 0.5
 
 
 def _redact_secrets(text: object, *secrets: str) -> str:
@@ -38,19 +43,37 @@ def push_message(
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
+        # LINE uses this UUID to make retries idempotent. Generate it before
+        # the first request and reuse it for every attempt in this call.
+        "X-Line-Retry-Key": str(uuid4()),
     }
-    try:
-        resp = requests.post(
-            f"{base_url}{PUSH_PATH}",
-            json=payload,
-            headers=headers,
-            timeout=timeout,
-        )
-    except requests.RequestException as e:
-        return False, f"network error: {type(e).__name__}"
 
-    if resp.status_code == 200:
-        return True, None
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            resp = requests.post(
+                f"{base_url}{PUSH_PATH}",
+                json=payload,
+                headers=headers,
+                timeout=timeout,
+            )
+        except requests.RequestException as e:
+            if attempt + 1 < MAX_ATTEMPTS:
+                time.sleep(RETRY_BACKOFF_SEC * (2**attempt))
+                continue
+            return False, f"network error: {type(e).__name__}"
+
+        if resp.status_code == 200:
+            return True, None
+        # A 409 with this header means LINE accepted an earlier attempt with
+        # the same retry key, so the delivery should be treated as successful.
+        if resp.status_code == 409 and resp.headers.get(
+            "X-Line-Accepted-Request-Id"
+        ):
+            return True, None
+        if 500 <= resp.status_code < 600 and attempt + 1 < MAX_ATTEMPTS:
+            time.sleep(RETRY_BACKOFF_SEC * (2**attempt))
+            continue
+        break
 
     detail = ""
     try:

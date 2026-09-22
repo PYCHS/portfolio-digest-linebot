@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import requests
 
 from src.line_client import LINE_TEXT_LIMIT, push_message
@@ -25,6 +27,13 @@ def test_request_body_has_correct_shape(requests_mock):
     assert body == {"to": "GROUP-X", "messages": [{"type": "text", "text": "hi"}]}
 
 
+def test_request_has_uuid_retry_key(requests_mock):
+    requests_mock.post(PUSH_URL, status_code=200, json={})
+    push_message(text="hi", group_id="C1", access_token="t")
+    retry_key = requests_mock.last_request.headers["X-Line-Retry-Key"]
+    assert str(UUID(retry_key)) == retry_key
+
+
 def test_401_returns_failure_with_line_error_message(requests_mock):
     requests_mock.post(
         PUSH_URL,
@@ -37,11 +46,36 @@ def test_401_returns_failure_with_line_error_message(requests_mock):
     assert "Authentication failed" in err
 
 
-def test_500_returns_failure_with_status(requests_mock):
+def test_500_retries_once_then_returns_failure(requests_mock, monkeypatch):
+    monkeypatch.setattr("src.line_client.time.sleep", lambda _: None)
     requests_mock.post(PUSH_URL, status_code=500, text="Internal Server Error")
     ok, err = push_message(text="hi", group_id="C1", access_token="t")
     assert ok is False
     assert "500" in err
+    assert requests_mock.call_count == 2
+
+
+def test_timeout_retry_reuses_key_and_accepts_prior_delivery(requests_mock, monkeypatch):
+    monkeypatch.setattr("src.line_client.time.sleep", lambda _: None)
+    requests_mock.post(
+        PUSH_URL,
+        [
+            {"exc": requests.exceptions.ConnectTimeout},
+            {
+                "status_code": 409,
+                "headers": {"X-Line-Accepted-Request-Id": "accepted-request"},
+                "json": {"message": "The retry key is already accepted"},
+            },
+        ],
+    )
+
+    ok, err = push_message(text="hi", group_id="C1", access_token="t")
+
+    assert ok is True
+    assert err is None
+    assert requests_mock.call_count == 2
+    first, second = requests_mock.request_history
+    assert first.headers["X-Line-Retry-Key"] == second.headers["X-Line-Retry-Key"]
 
 
 def test_non_object_json_error_body_returns_failure(requests_mock):
