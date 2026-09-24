@@ -306,3 +306,27 @@ def test_quote_without_a_buy_price_yields_no_change_or_pnl():
     assert beta.buy_price is None
     assert beta.change_pct is None
     assert beta.pnl is None
+
+
+def test_negative_quantity_does_not_reverse_unrealized_pnl(tmp_path):
+    csv_path = tmp_path / "negative_quantity.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Bad Quantity,XS0,20250101,-1000,5.00,2030,"
+        "100.00,100000.00,5000.00,2500.00,5,5,5/01;11/01\n",
+        encoding="utf-8",
+    )
+
+    snap, exc = load_positions(
+        csv_path,
+        today=TODAY,
+        prices={"XS0": PricePoint(Decimal("110.00"), TODAY)},
+    )
+
+    assert snap is not None
+    assert snap.prices[0].change_pct == Decimal("10.00")
+    assert snap.prices[0].pnl is None
+    assert snap.unrealized == {}
+    assert "positions row 2: negative quantity '-1000'" in exc

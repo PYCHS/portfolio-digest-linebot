@@ -173,6 +173,11 @@ def load_positions(
                 if quote is not None
                 else None
             )
+            if qty is not None and qty < 0:
+                exceptions.append(
+                    f"positions row {n}: negative quantity '{row.get('quantity')}'"
+                )
+                qty = None
             mark = _mark_to_market(
                 name=issuer,
                 currency=ccy,
