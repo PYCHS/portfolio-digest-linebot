@@ -101,3 +101,27 @@ def load_prices(path: Path) -> tuple[dict[str, PricePoint] | None, list[str]]:
         out[isin] = PricePoint(price=price, as_of=as_of)
 
     return out, exceptions
+
+
+def merge_live_prices(
+    stored: dict[str, PricePoint] | None,
+    live: dict[str, PricePoint],
+) -> tuple[dict[str, PricePoint], list[str]]:
+    """Layer live quotes over stored fallbacks without moving backward in time."""
+    merged = dict(stored or {})
+    exceptions: list[str] = []
+    for isin, live_quote in live.items():
+        fallback = merged.get(isin)
+        if (
+            fallback is not None
+            and fallback.as_of is not None
+            and live_quote.as_of is not None
+            and live_quote.as_of < fallback.as_of
+        ):
+            exceptions.append(
+                f"quotes {isin}: live quote dated {live_quote.as_of.isoformat()} "
+                f"is older than fallback {fallback.as_of.isoformat()}; keeping fallback"
+            )
+            continue
+        merged[isin] = live_quote
+    return merged, exceptions

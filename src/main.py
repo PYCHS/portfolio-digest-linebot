@@ -17,7 +17,7 @@ from .sources.fx import fetch_fx
 from .sources.ledger import load_ledger
 from .sources.news import fetch_news
 from .sources.positions import load_positions
-from .sources.prices import load_prices
+from .sources.prices import load_prices, merge_live_prices
 from .sources.quotes import fetch_quotes
 from .sources.schedule import project_cashflows
 
@@ -162,7 +162,8 @@ def build_digest(
             live, quote_exc = fetch_quotes(positions_path, today)
             exceptions.extend(quote_exc)
             if live:
-                prices = {**(prices or {}), **live}
+                prices, merge_exc = merge_live_prices(prices, live)
+                exceptions.extend(merge_exc)
         except Exception as e:
             log.exception("quotes collector raised")
             exceptions.append(f"quotes: unexpected {type(e).__name__}")

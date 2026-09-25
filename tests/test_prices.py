@@ -2,7 +2,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from src.sources.prices import load_prices
+from src.models import PricePoint
+from src.sources.prices import load_prices, merge_live_prices
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -103,3 +104,20 @@ def test_compact_and_slash_date_formats_are_accepted():
     assert exc == []
     assert prices["XS0000000001"].as_of == date(2026, 4, 24)
     assert prices["US0000000002"].as_of == date(2026, 4, 23)
+
+
+def test_older_live_quote_does_not_replace_newer_stored_fallback():
+    stored = {
+        "XS0000000001": PricePoint(Decimal("99.50"), date(2026, 4, 24))
+    }
+    live = {
+        "XS0000000001": PricePoint(Decimal("98.00"), date(2026, 4, 20))
+    }
+
+    merged, exc = merge_live_prices(stored, live)
+
+    assert merged["XS0000000001"] == stored["XS0000000001"]
+    assert exc == [
+        "quotes XS0000000001: live quote dated 2026-04-20 is older than "
+        "fallback 2026-04-24; keeping fallback"
+    ]

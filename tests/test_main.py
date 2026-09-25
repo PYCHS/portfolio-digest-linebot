@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -6,6 +7,7 @@ import pytest
 
 import src.main as main_module
 from src.main import main
+from src.models import PricePoint
 
 TPE = ZoneInfo("Asia/Taipei")
 NOW = datetime(2026, 4, 25, 12, 0, 0, tzinfo=TPE)
@@ -396,6 +398,33 @@ def test_live_quote_supersedes_the_stored_price(
     assert "130.69" in out
     assert "120.00" not in out
     assert "報價日 2026-04-25" in out
+
+
+def test_older_live_quote_keeps_the_newer_stored_price(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    _quotable_files(tmp_path, monkeypatch, "US260543BY86,125.0000,2026-04-24\n")
+    monkeypatch.setattr(
+        main_module,
+        "fetch_quotes",
+        lambda _path, _today: (
+            {
+                "US260543BY86": PricePoint(
+                    Decimal("120.00"), date(2026, 4, 20)
+                )
+            },
+            [],
+        ),
+    )
+
+    assert main(["--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "125.00" in out
+    assert "120.00" not in out
+    assert "live quote dated 2026-04-20 is older than fallback 2026-04-24" in out
 
 
 def test_failed_fetch_falls_back_to_the_file_with_its_older_date(
