@@ -129,6 +129,25 @@ def test_invalid_isin_is_reported_before_any_network_request(
     assert requests_mock.request_history == []
 
 
+@pytest.mark.parametrize(
+    ("row", "field"),
+    [
+        (DOW_ROW.replace(",9.40,2039-05-15,", ",,2039-05-15,"), "coupon_rate_pct"),
+        (DOW_ROW.replace(",9.40,2039-05-15,", ",9.40,,"), "maturity"),
+    ],
+)
+def test_missing_holding_identity_field_is_rejected_before_lookup(
+    tmp_path, requests_mock, row, field
+):
+    """A live quote is unsafe when the holding cannot fully identify it."""
+    got, exc = fetch_quotes(_positions(tmp_path, row), TODAY)
+    assert got == {}
+    assert exc == [
+        f"quotes row 2: missing or invalid {field} for 'US260543BY86'"
+    ]
+    assert requests_mock.request_history == []
+
+
 def test_duplicate_lots_fetch_their_shared_isin_only_once(tmp_path, requests_mock):
     """Multiple lots of one bond share one market quote.
 

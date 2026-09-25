@@ -127,11 +127,24 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
         if not _is_valid_isin(isin):
             exceptions.append(f"quotes row {row_number}: invalid ISIN {isin!r}")
             continue
+        coupon = _parse_decimal(row.get("coupon_rate_pct") or "")
+        maturity = _parse_date(row.get("maturity") or "")
+        invalid_identity_fields = []
+        if coupon is None:
+            invalid_identity_fields.append("coupon_rate_pct")
+        if maturity is None:
+            invalid_identity_fields.append("maturity")
+        if invalid_identity_fields:
+            fields = ", ".join(invalid_identity_fields)
+            exceptions.append(
+                f"quotes row {row_number}: missing or invalid {fields} for {isin!r}"
+            )
+            continue
         target = _Target(
             isin=isin,
             name=(row.get("issuer_or_name") or "").strip(),
-            coupon=_parse_decimal(row.get("coupon_rate_pct") or ""),
-            maturity=_parse_date(row.get("maturity") or ""),
+            coupon=coupon,
+            maturity=maturity,
         )
         if isin in conflicting_isins:
             continue
