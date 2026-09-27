@@ -123,7 +123,14 @@ def _normalize_keywords(value: Any) -> list[str]:
         values = value
     else:
         return []
-    return [str(keyword).strip().lower() for keyword in values if str(keyword).strip()]
+    # YAML blank list items become None. Converting arbitrary values with
+    # str() would turn one into the keyword "none", causing ordinary English
+    # headlines containing that word to trigger a false alert.
+    return [
+        keyword.strip().lower()
+        for keyword in values
+        if isinstance(keyword, str) and keyword.strip()
+    ]
 
 
 def fetch_news(
