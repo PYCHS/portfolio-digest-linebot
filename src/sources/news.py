@@ -105,6 +105,20 @@ def _entry_is_fresh(entry: dict[str, Any], cutoff: datetime, now: datetime) -> b
     return published is not None and cutoff <= published <= now
 
 
+def _entry_is_new(
+    entry: dict[str, Any],
+    cutoff: datetime,
+    now: datetime,
+    seen: list[SeenEntry],
+    threshold: float,
+) -> bool:
+    """Return whether an entry is fresh and has not already been delivered."""
+    title = _entry_text(entry, "title")
+    return _entry_is_fresh(entry, cutoff, now) and not is_duplicate(
+        title, seen, threshold=threshold
+    )
+
+
 def _entry_source(entry: dict[str, Any], fallback_url: str) -> str:
     src = entry.get("source")
     if isinstance(src, dict):
@@ -254,20 +268,20 @@ def fetch_news(
     fetched_direct = _fetch_all(direct_urls, timeout)
 
     # ---- Phase 2: parallel-fetch GN URLs only for issuers whose direct feeds
-    # yielded no fresh entries. A healthy feed commonly keeps old articles;
-    # their presence must not suppress the fallback when every item falls
-    # outside today's lookback window. ----
+    # yielded no fresh, unseen entries. A healthy feed commonly keeps old or
+    # already-delivered articles; neither should suppress the fallback when
+    # it may contain a new story for today's digest. ----
     needs_gn: set[str] = set()
     for p in plans:
-        has_fresh_entries = any(
+        has_new_entries = any(
             isinstance(fetched_direct.get(u), list)
             and any(
-                _entry_is_fresh(entry, cutoff, now)
+                _entry_is_new(entry, cutoff, now, seen, threshold)
                 for entry in fetched_direct[u]
             )
             for u in p["configured_urls"]
         )
-        p["use_gn"] = not has_fresh_entries
+        p["use_gn"] = not has_new_entries
         if p["use_gn"]:
             needs_gn.add(p["gn_url"])
     fetched_gn = _fetch_all(needs_gn, timeout)

@@ -14,6 +14,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
 WATCHLIST = FIXTURES / "watchlist_test.yaml"
 ACME_RSS_URL = "https://example.com/acme/press.rss"
 GN_URL = "https://news.google.com/rss/search"
+ACME_GN_URL = f"{GN_URL}?q=ACME+Holdings+AG"
+BETA_GN_URL = f"{GN_URL}?q=Beta+Capital"
 
 
 def _read(name: str) -> str:
@@ -147,9 +149,51 @@ def test_stale_direct_feed_uses_google_news_fallback(requests_mock, tmp_path):
     assert requests_mock.call_count == 2
 
 
+def test_seen_direct_item_uses_google_news_fallback(requests_mock, tmp_path):
+    """A fresh timestamp is not enough when yesterday already sent the item."""
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: ACME\n"
+        "    name: ACME Holdings AG\n"
+        f"    rss: [{ACME_RSS_URL}]\n",
+        encoding="utf-8",
+    )
+    seen = tmp_path / "seen.json"
+    save_seen(
+        seen,
+        [
+            SeenEntry(
+                title_norm="acme q1 results in line with guidance",
+                first_seen=(NOW - timedelta(hours=1)).isoformat(),
+            )
+        ],
+    )
+    google_rss = (
+        '<?xml version="1.0"?><rss version="2.0"><channel><item>'
+        '<title>ACME announces a new partnership</title>'
+        '<pubDate>Sat, 25 Apr 2026 11:00:00 +0000</pubDate>'
+        '</item></channel></rss>'
+    )
+    requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
+    requests_mock.get(ACME_GN_URL, text=google_rss)
+
+    items, exc = fetch_news(wl, seen, now=NOW)
+
+    assert exc == []
+    assert [item.summary for item in items] == [
+        "ACME announces a new partnership"
+    ]
+    assert requests_mock.call_count == 2
+
+
 def test_dedup_across_runs_returns_no_acme_item_on_second_run(requests_mock, tmp_path):
     requests_mock.get(ACME_RSS_URL, text=_read("rss_acme.xml"))
-    requests_mock.get(GN_URL, text=_read("rss_google_beta.xml"))
+    requests_mock.get(BETA_GN_URL, text=_read("rss_google_beta.xml"))
+    requests_mock.get(
+        ACME_GN_URL,
+        text='<?xml version="1.0"?><rss><channel></channel></rss>',
+    )
     seen = tmp_path / "seen.json"
 
     first, _ = fetch_news(WATCHLIST, seen, now=NOW)
