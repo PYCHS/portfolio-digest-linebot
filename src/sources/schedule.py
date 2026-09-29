@@ -78,6 +78,7 @@ def _monthly_occurrences(day: int, lo: Date, hi: Date) -> list[Date]:
 def _yearly_occurrences(md_list: str, lo: Date, hi: Date) -> list[Date]:
     out: list[Date] = []
     found_date = False
+    seen_month_days: set[tuple[int, int]] = set()
     for raw in md_list.split(";"):
         raw = raw.strip()
         if not raw:
@@ -91,6 +92,10 @@ def _yearly_occurrences(md_list: str, lo: Date, hi: Date) -> list[Date]:
         # Use a leap year so 2/29 remains a valid annual schedule.
         if _safe_date(2000, m, d) is None:
             raise ValueError(f"bad yearly date {raw!r}")
+        month_day = (m, d)
+        if month_day in seen_month_days:
+            raise ValueError(f"duplicate yearly date {raw!r}")
+        seen_month_days.add(month_day)
         for year in range(lo.year, hi.year + 1):
             cand = _safe_date(year, m, d)
             if cand and lo <= cand <= hi:

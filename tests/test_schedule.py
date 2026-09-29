@@ -233,6 +233,24 @@ def test_empty_and_impossible_yearly_schedules_are_reported(tmp_path):
     ]
 
 
+def test_duplicate_yearly_dates_are_rejected_without_double_counting(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "Duplicate payout,USD,500,yearly:9/4;09/04,,,insurance,0\n"
+        + "Valid payout,USD,10,once:2026-09-04,,,insurance,0\n",
+    )
+
+    proj, exc = project_cashflows(
+        tmp_path / "nope.csv", recurring, TODAY, horizon_days=60
+    )
+
+    assert [event.label for event in proj.events] == ["Valid payout"]
+    assert proj.net == {"USD": Decimal("10.00")}
+    assert exc == ["recurring row 2: duplicate yearly date '09/04'"]
+
+
 def test_reversed_recurring_bounds_reported_but_outside_window_is_normal(tmp_path):
     recurring = _write(
         tmp_path, "recurring.csv", RECURRING_HEADER
