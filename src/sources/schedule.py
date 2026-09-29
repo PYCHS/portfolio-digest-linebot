@@ -42,9 +42,10 @@ CATEGORIES = {"coupon", "principal", "interest", "insurance", "other"}
 TWO_DP = Decimal("0.01")
 
 # How far past the horizon to keep expanding when hunting for the next inflow.
-# Just over a year, so an annual payer (insurance dividend, yearly coupon) is
-# always caught even when today sits right after its payment date.
-INFLOW_LOOKAHEAD_DAYS = 400
+# Eight years covers the longest gap between leap days around a non-leap
+# century (for example, 2096 to 2104), so every supported yearly schedule can
+# still report its next payment.
+INFLOW_LOOKAHEAD_DAYS = 8 * 366
 
 
 def _safe_date(year: int, month: int, day: int) -> Date | None:

@@ -338,3 +338,23 @@ def test_next_inflow_catches_an_annual_payer_just_missed(tmp_path):
     proj, _ = project_cashflows(tmp_path / "nope.csv", recurring, TODAY)
     assert proj.next_inflow is not None
     assert proj.next_inflow.date == date(2027, 8, 1)
+
+
+def test_next_inflow_catches_a_leap_day_payer_beyond_one_year(tmp_path):
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "Leap-day payout,USD,100.00,yearly:2/29,,,insurance,1\n",
+    )
+    today = date(2026, 3, 1)
+
+    proj, exc = project_cashflows(
+        tmp_path / "nope.csv", recurring, today, horizon_days=60
+    )
+
+    assert exc == []
+    assert proj.events == []
+    assert proj.next_inflow is not None
+    assert proj.next_inflow.date == date(2028, 2, 29)
+    assert proj.next_inflow_days == (date(2028, 2, 29) - today).days
