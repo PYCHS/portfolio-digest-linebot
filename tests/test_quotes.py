@@ -269,6 +269,20 @@ def test_missing_positions_file_is_reported_without_any_request(tmp_path, reques
     assert requests_mock.request_history == []
 
 
+def test_invalid_utf8_positions_file_is_reported_without_any_request(
+    tmp_path, requests_mock
+):
+    positions = tmp_path / "positions.csv"
+    positions.write_bytes(b"isin_or_code,coupon_rate_pct,maturity\nUS260543BY86,\xff,2039\n")
+
+    got, exc = fetch_quotes(positions, TODAY)
+
+    assert got == {}
+    assert len(exc) == 1
+    assert exc[0].startswith("quotes: positions read error:")
+    assert requests_mock.request_history == []
+
+
 def test_transient_failure_is_retried_once(tmp_path, requests_mock):
     requests_mock.get(
         DOW_URL,

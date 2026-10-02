@@ -114,7 +114,7 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
     try:
         with path.open(encoding="utf-8-sig", newline="") as f:
             rows = list(csv.DictReader(f))
-    except OSError as e:
+    except (OSError, UnicodeError) as e:
         return [], [f"quotes: positions read error: {e}"]
 
     targets: dict[str, _Target] = {}
