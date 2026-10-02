@@ -285,6 +285,33 @@ def test_generate_greeting_splices_quote_back_when_model_drops_it(requests_mock)
     assert "加油！" not in text
 
 
+@pytest.mark.parametrize(
+    "model_text",
+    [
+        "☀️ 早安！",
+        "☀️ 早安！\n{quote}\n😄 今日笑話：...\n額外說明",
+    ],
+)
+def test_generate_greeting_wrong_line_count_falls_back(requests_mock, model_text):
+    today = date(2026, 8, 4)
+    requests_mock.post(
+        API_URL,
+        json={
+            "content": [
+                {
+                    "type": "text",
+                    "text": model_text.format(quote=quote_of_the_day(today)),
+                }
+            ]
+        },
+    )
+
+    text, exc = generate_greeting(today, api_key="k")
+
+    assert text == fallback_greeting(today)
+    assert exc == ["llm greeting: ValueError"]
+
+
 def test_generate_greeting_api_error_falls_back(requests_mock):
     requests_mock.post(API_URL, status_code=429, json={"error": "rate"})
     today = date(2026, 8, 4)

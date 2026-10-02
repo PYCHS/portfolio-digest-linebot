@@ -327,7 +327,11 @@ def generate_greeting(
             raise ValueError("empty greeting")
         if len(text) > MAX_GREETING_CHARS:
             raise ValueError("greeting too long")
-        return _ensure_quote(text, quote), []
+        text = _ensure_quote(text, quote)
+        lines = [line for line in text.splitlines() if line.strip()]
+        if len(lines) != 3:
+            raise ValueError("greeting must have exactly three lines")
+        return "\n".join(lines), []
     except (
         requests.RequestException,
         json.JSONDecodeError,
