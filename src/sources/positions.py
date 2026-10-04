@@ -164,6 +164,12 @@ def load_positions(
                 f"positions row {n}: negative cost '{row.get('cost')}'"
             )
             cost = None
+        if buy_price is not None and buy_price <= 0:
+            exceptions.append(
+                f"positions row {n}: non-positive buy_price "
+                f"'{row.get('buy_price')}'"
+            )
+            buy_price = None
         if cost is None or buy_price is None:
             uncosted_issuers.append(issuer)
         else:

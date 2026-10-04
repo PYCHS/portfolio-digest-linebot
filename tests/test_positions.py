@@ -184,6 +184,37 @@ def test_negative_cost_is_excluded_from_portfolio_total(tmp_path):
     assert exc == ["positions row 2: negative cost '-10000.00'"]
 
 
+def test_non_positive_buy_price_is_excluded_from_portfolio_total(tmp_path):
+    csv_path = tmp_path / "non_positive_buy_price.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Zero Price,XS0,20250101,100,5.00,2030,"
+        "0,10000.00,500.00,250.00,5,5,12/01\n"
+        "bond,Negative Price,XS1,20250101,100,5.00,2030,"
+        "-1,10000.00,500.00,250.00,5,5,12/01\n"
+        "bond,Valid Price,XS2,20250101,200,5.00,2030,"
+        "100.00,20000.00,1000.00,500.00,5,5,12/01\n",
+        encoding="utf-8",
+    )
+
+    snap, exc = load_positions(csv_path, today=TODAY)
+
+    assert snap is not None
+    assert snap.total_cost == {"USD": Decimal("20000.00")}
+    assert snap.uncosted_issuers == ["Zero Price", "Negative Price"]
+    assert [holding.buy_price for holding in snap.prices] == [
+        None,
+        None,
+        Decimal("100.00"),
+    ]
+    assert exc == [
+        "positions row 2: non-positive buy_price '0'",
+        "positions row 3: non-positive buy_price '-1'",
+    ]
+
+
 def test_malformed_semiannual_interest_logged_even_when_coupon_out_of_window(tmp_path):
     # Regression for B1: semiannual_interest parsing previously only happened
     # inside the in-window branch, so a row with a malformed semi field plus a
