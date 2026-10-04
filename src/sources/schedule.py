@@ -265,6 +265,20 @@ def _load_position_coupon_events(
         if not mds:
             continue
 
+        # A bond's final coupon may be paid on its maturity date, but never
+        # after it. Older files sometimes contain only a maturity year; keep
+        # those backward-compatible rather than guessing a day within it.
+        maturity: Date | None = None
+        maturity_raw = (row.get("maturity") or "").strip()
+        if maturity_raw:
+            try:
+                maturity = Date.fromisoformat(maturity_raw)
+            except ValueError:
+                pass
+        payment_end = min(horizon_end, maturity) if maturity else horizon_end
+        if payment_end < today:
+            continue
+
         n_per_year = len(mds)
         if n_per_year == 2 and semi is not None:
             amount = semi
@@ -274,9 +288,9 @@ def _load_position_coupon_events(
             continue
 
         for m, d in mds:
-            for year in range(today.year, horizon_end.year + 1):
+            for year in range(today.year, payment_end.year + 1):
                 cand = _safe_date(year, m, d)
-                if cand and today <= cand <= horizon_end:
+                if cand and today <= cand <= payment_end:
                     events.append(
                         CashflowEvent(
                             date=cand,

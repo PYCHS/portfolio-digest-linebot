@@ -120,6 +120,26 @@ def test_duplicate_coupon_dates_do_not_create_multiple_payments(tmp_path):
     assert exc == ["schedule: positions row 2: duplicate coupon date '09/15'"]
 
 
+def test_position_coupons_stop_at_maturity_date(tmp_path):
+    positions = _write(
+        tmp_path,
+        "positions.csv",
+        POSITIONS_HEADER
+        + "bond,Maturing Bond,US91324PFK30,,1000,5,2026-08-10,"
+        "100,100000,1200,600,5,5,8/10;9/10\n",
+    )
+
+    proj, exc = project_cashflows(
+        positions, tmp_path / "nope.csv", TODAY, horizon_days=60
+    )
+
+    assert exc == []
+    assert [(event.date, event.amount) for event in proj.events] == [
+        (date(2026, 8, 10), Decimal("600"))
+    ]
+    assert proj.net == {"USD": Decimal("600.00")}
+
+
 def test_recurring_monthly_with_end_date(tmp_path):
     recurring = _write(
         tmp_path,
