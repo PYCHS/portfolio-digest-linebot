@@ -204,6 +204,18 @@ def load_positions(
 
         annual = _parse_decimal_field(row, "annual_interest", n, exceptions)
         semi = _parse_decimal_field(row, "semiannual_interest", n, exceptions)
+        if annual is not None and annual < 0:
+            exceptions.append(
+                f"positions row {n}: negative annual_interest "
+                f"'{row.get('annual_interest')}'"
+            )
+            annual = None
+        if semi is not None and semi < 0:
+            exceptions.append(
+                f"positions row {n}: negative semiannual_interest "
+                f"'{row.get('semiannual_interest')}'"
+            )
+            semi = None
         if annual is not None:
             annual_coupon[ccy] = annual_coupon.get(ccy, Decimal("0.00")) + annual
 

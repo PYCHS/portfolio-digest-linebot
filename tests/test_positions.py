@@ -215,6 +215,32 @@ def test_non_positive_buy_price_is_excluded_from_portfolio_total(tmp_path):
     ]
 
 
+def test_negative_interest_does_not_reduce_coupon_totals(tmp_path):
+    csv_path = tmp_path / "negative_interest.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Invalid Interest,XS0,20250101,100,5.00,2030,"
+        "100.00,10000.00,-500.00,-250.00,5,5,5/01;11/01\n"
+        "bond,Valid Interest,XS1,20250101,200,5.00,2030,"
+        "100.00,20000.00,1000.00,500.00,5,5,5/01;11/01\n",
+        encoding="utf-8",
+    )
+
+    snap, exc = load_positions(csv_path, today=TODAY)
+
+    assert snap is not None
+    assert snap.annual_coupon == {"USD": Decimal("1000.00")}
+    assert snap.next_coupon is not None
+    assert snap.next_coupon.issuer == "Valid Interest"
+    assert snap.next_coupon.amount == Decimal("500.00")
+    assert exc == [
+        "positions row 2: negative annual_interest '-500.00'",
+        "positions row 2: negative semiannual_interest '-250.00'",
+    ]
+
+
 def test_malformed_semiannual_interest_logged_even_when_coupon_out_of_window(tmp_path):
     # Regression for B1: semiannual_interest parsing previously only happened
     # inside the in-window branch, so a row with a malformed semi field plus a

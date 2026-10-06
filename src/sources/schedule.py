@@ -256,6 +256,16 @@ def _load_position_coupon_events(
 
         annual = _dec("annual_interest")
         semi = _dec("semiannual_interest")
+        if annual is not None and annual < 0:
+            exceptions.append(
+                f"schedule: positions row {row_n}: negative annual_interest"
+            )
+            annual = None
+        if semi is not None and semi < 0:
+            exceptions.append(
+                f"schedule: positions row {row_n}: negative semiannual_interest"
+            )
+            semi = None
 
         try:
             mds = parse_coupon_month_days(coupon_dates)

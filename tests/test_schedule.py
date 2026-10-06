@@ -93,6 +93,29 @@ def test_bond_coupons_expand_from_positions(tmp_path):
     assert not e.is_estimate
 
 
+def test_negative_bond_interest_is_not_projected_as_an_outflow(tmp_path):
+    positions = _write(
+        tmp_path,
+        "positions.csv",
+        POSITIONS_HEADER
+        + "bond,Invalid Interest,US91324PFK30,,1000,5,2044,"
+        "100,100000,-1000,-500,5,5,8/8;2/8\n"
+        + "bond,Valid Interest,US718172BD03,,1000,5,2044,"
+        "100,100000,1000,500,5,5,8/8;2/8\n",
+    )
+
+    proj, exc = project_cashflows(positions, tmp_path / "nope.csv", TODAY)
+
+    assert [(event.label, event.amount) for event in proj.events] == [
+        ("Valid Interest 配息", Decimal("500"))
+    ]
+    assert proj.net == {"USD": Decimal("500.00")}
+    assert exc == [
+        "schedule: positions row 2: negative annual_interest",
+        "schedule: positions row 2: negative semiannual_interest",
+    ]
+
+
 def test_partially_malformed_coupon_schedule_is_not_projected(tmp_path):
     positions = _write(
         tmp_path,
