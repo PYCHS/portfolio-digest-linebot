@@ -358,7 +358,14 @@ def test_watchlist_rejects_non_mapping_settings(tmp_path, settings):
 
 @pytest.mark.parametrize(
     "setting",
-    ["lookback_hours: nope", "similarity_threshold: []"],
+    [
+        "lookback_hours: nope",
+        "similarity_threshold: []",
+        "lookback_hours: true",
+        "max_items_per_issuer: false",
+        "dedup_lookback_days: false",
+        "similarity_threshold: true",
+    ],
 )
 def test_watchlist_rejects_non_numeric_settings(tmp_path, setting):
     bad = tmp_path / "bad.yaml"

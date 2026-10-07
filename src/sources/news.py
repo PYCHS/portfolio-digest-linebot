@@ -187,13 +187,21 @@ def fetch_news(
         return None, ["news: watchlist malformed ('settings' must be a mapping)"]
     # `lookback_hours` is canonically under settings, but a top-level value is
     # accepted as an alias so a flat watchlist still works.
+    lookback_raw = settings.get("lookback_hours", wl.get("lookback_hours", 24))
+    max_items_raw = settings.get("max_items_per_issuer", 1)
+    dedup_days_raw = settings.get("dedup_lookback_days", 3)
+    threshold_raw = settings.get("similarity_threshold", 0.85)
+    # bool subclasses int in Python, so int(False) would silently disable
+    # dedup and float(True) would become a valid 1.0 similarity threshold.
+    if any(type(value) is bool for value in (
+        lookback_raw, max_items_raw, dedup_days_raw, threshold_raw
+    )):
+        return None, ["news: watchlist malformed (settings must be numeric)"]
     try:
-        lookback_hours = int(
-            settings.get("lookback_hours", wl.get("lookback_hours", 24))
-        )
-        max_per_issuer = int(settings.get("max_items_per_issuer", 1))
-        dedup_days = int(settings.get("dedup_lookback_days", 3))
-        threshold = float(settings.get("similarity_threshold", 0.85))
+        lookback_hours = int(lookback_raw)
+        max_per_issuer = int(max_items_raw)
+        dedup_days = int(dedup_days_raw)
+        threshold = float(threshold_raw)
     except (TypeError, ValueError):
         return None, ["news: watchlist malformed (settings must be numeric)"]
     if (
