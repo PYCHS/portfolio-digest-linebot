@@ -254,9 +254,13 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"error: {exc}\n")
         return 2
 
-    token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
-    group_id = os.environ.get("LINE_GROUP_ID", "")
-    if args.push and (not token.strip() or not group_id.strip()):
+    # Copying credentials into an environment or GitHub Secret can leave a
+    # trailing newline. Validate and send the same normalized values so a
+    # non-blank secret cannot pass this guard and then produce a malformed
+    # Authorization header or recipient ID.
+    token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "").strip()
+    group_id = os.environ.get("LINE_GROUP_ID", "").strip()
+    if args.push and (not token or not group_id):
         sys.stderr.write(
             "error: --push requires LINE_CHANNEL_ACCESS_TOKEN and LINE_GROUP_ID in env.\n"
         )

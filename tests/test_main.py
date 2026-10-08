@@ -163,6 +163,24 @@ def test_push_flag_sends_rendered_message_to_line_group(
     assert "(pushed to LINE)" in out
 
 
+def test_push_strips_surrounding_credential_whitespace(
+    tmp_path, monkeypatch, requests_mock
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "  test-token\n")
+    monkeypatch.setenv("LINE_GROUP_ID", "\tC-test-group ")
+    requests_mock.post("https://api.line.me/v2/bot/message/push", status_code=200, json={})
+
+    rc = main(["--push"])
+
+    assert rc == 0
+    push_req = next(r for r in requests_mock.request_history if "line.me" in r.url)
+    assert push_req.headers["Authorization"] == "Bearer test-token"
+    assert push_req.json()["to"] == "C-test-group"
+
+
 def test_push_without_required_env_returns_rc2(
     tmp_path, monkeypatch, requests_mock, capsys
 ):
