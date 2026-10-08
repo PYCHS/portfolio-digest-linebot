@@ -10,6 +10,7 @@ DEFAULT_BASE_URL = "https://api.line.me"
 PUSH_PATH = "/v2/bot/message/push"
 DEFAULT_TIMEOUT = 10.0
 LINE_TEXT_LIMIT = 5000  # LINE's per-text-message character cap
+LINE_MESSAGE_LIMIT = 5  # LINE's per-push message-object cap
 MAX_ATTEMPTS = 2
 RETRY_BACKOFF_SEC = 0.5
 
@@ -23,6 +24,27 @@ def _redact_secrets(text: object, *secrets: str) -> str:
     return text
 
 
+def _split_text(text: str) -> list[str]:
+    """Split a digest into LINE-sized messages without dropping characters.
+
+    Prefer a newline boundary so section headings and list items remain
+    readable. A single overlong line is hard-split as a last resort.
+    """
+    chunks: list[str] = []
+    while len(text) > LINE_TEXT_LIMIT:
+        parts_needed = (len(text) + LINE_TEXT_LIMIT - 1) // LINE_TEXT_LIMIT
+        min_cut = len(text) - (parts_needed - 1) * LINE_TEXT_LIMIT
+        newline = text.rfind("\n", max(0, min_cut - 1), LINE_TEXT_LIMIT)
+        if newline < 0:
+            cut = LINE_TEXT_LIMIT
+        else:
+            cut = newline + 1  # Keep it so joining chunks reproduces the input.
+        chunks.append(text[:cut])
+        text = text[cut:]
+    chunks.append(text)
+    return chunks
+
+
 def push_message(
     *,
     text: str,
@@ -31,15 +53,22 @@ def push_message(
     base_url: str = DEFAULT_BASE_URL,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> tuple[bool, str | None]:
-    """POST a single text message to a LINE group.
+    """POST one digest to a LINE group, split into at most five messages.
 
     Returns (True, None) on success, (False, error_string) on failure.
     The error string never includes the access token or group id.
     """
-    if len(text) > LINE_TEXT_LIMIT:
-        return False, f"message too long ({len(text)} > {LINE_TEXT_LIMIT} chars)"
+    text_chunks = _split_text(text)
+    if len(text_chunks) > LINE_MESSAGE_LIMIT:
+        return False, (
+            f"message too long ({len(text)} chars needs {len(text_chunks)} parts; "
+            f"max {LINE_MESSAGE_LIMIT})"
+        )
 
-    payload = {"to": group_id, "messages": [{"type": "text", "text": text}]}
+    payload = {
+        "to": group_id,
+        "messages": [{"type": "text", "text": chunk} for chunk in text_chunks],
+    }
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",

@@ -2,7 +2,7 @@ from uuid import UUID
 
 import requests
 
-from src.line_client import LINE_TEXT_LIMIT, push_message
+from src.line_client import LINE_MESSAGE_LIMIT, LINE_TEXT_LIMIT, push_message
 
 PUSH_URL = "https://api.line.me/v2/bot/message/push"
 
@@ -92,11 +92,28 @@ def test_network_error_returns_failure_without_status(requests_mock):
     assert "network" in err.lower()
 
 
-def test_message_over_limit_rejected_without_network_call(requests_mock):
+def test_message_over_limit_is_split_in_one_push(requests_mock):
+    requests_mock.post(PUSH_URL, status_code=200, json={})
+    long_text = "x" * (LINE_TEXT_LIMIT - 10) + "\n" + "y" * 20
+
+    ok, err = push_message(text=long_text, group_id="C1", access_token="t")
+
+    assert ok is True
+    assert err is None
+    body = requests_mock.last_request.json()
+    chunks = [message["text"] for message in body["messages"]]
+    assert len(chunks) == 2
+    assert all(len(chunk) <= LINE_TEXT_LIMIT for chunk in chunks)
+    assert "".join(chunks) == long_text
+    assert requests_mock.call_count == 1
+
+
+def test_message_over_combined_limit_rejected_without_network_call(requests_mock):
     # Deliberately no mock registration — if the function tried to send,
     # requests-mock would raise NoMockAddress. We verify nothing is sent.
-    long_text = "x" * (LINE_TEXT_LIMIT + 1)
+    long_text = "x" * (LINE_TEXT_LIMIT * LINE_MESSAGE_LIMIT + 1)
     ok, err = push_message(text=long_text, group_id="C1", access_token="t")
+
     assert ok is False
     assert "too long" in err
     assert requests_mock.request_history == []
