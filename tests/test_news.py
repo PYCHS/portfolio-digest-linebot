@@ -331,6 +331,24 @@ def test_watchlist_malformed_returns_full_gap(tmp_path):
     assert exc and "malformed" in exc[0]
 
 
+def test_invalid_utf8_watchlist_returns_read_error_without_requests(
+    monkeypatch, tmp_path
+):
+    watchlist = tmp_path / "watchlist.yaml"
+    watchlist.write_bytes(b"issuers:\n  - name: invalid\xff\n")
+    seen = tmp_path / "seen.json"
+    monkeypatch.setattr(
+        "src.sources.news._fetch_all",
+        lambda *_args, **_kwargs: pytest.fail("invalid watchlist triggered a request"),
+    )
+
+    items, exc = fetch_news(watchlist, seen, now=NOW)
+
+    assert items is None
+    assert exc == ["news: watchlist read error: UnicodeDecodeError"]
+    assert not seen.exists()
+
+
 @pytest.mark.parametrize("issuers", ["null", "ACME", "{id: ACME}"])
 def test_watchlist_rejects_non_list_issuers(tmp_path, issuers):
     bad = tmp_path / "bad.yaml"

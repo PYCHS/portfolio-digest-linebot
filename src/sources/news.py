@@ -173,7 +173,7 @@ def fetch_news(
     try:
         with watchlist_path.open(encoding="utf-8") as f:
             wl = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError) as e:
+    except (OSError, UnicodeError, yaml.YAMLError) as e:
         return None, [f"news: watchlist read error: {type(e).__name__}"]
 
     if not isinstance(wl, dict) or "issuers" not in wl:
