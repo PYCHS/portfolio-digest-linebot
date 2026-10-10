@@ -87,6 +87,12 @@ def load_prices(path: Path) -> tuple[dict[str, PricePoint] | None, list[str]]:
         # row pasted at the bottom replace a demonstrably newer quote.
         if isin in out:
             previous = out[isin]
+            if previous.as_of is not None and as_of is None:
+                exceptions.append(
+                    f"prices: duplicate {isin} "
+                    f"(keeping dated {previous.as_of.isoformat()} over undated row)"
+                )
+                continue
             if (
                 previous.as_of is not None
                 and as_of is not None
