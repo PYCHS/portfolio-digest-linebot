@@ -194,6 +194,32 @@ def test_est_annual_coupon_omits_yield_when_total_cost_is_zero():
     assert "yield" not in out
 
 
+def test_est_annual_coupon_omits_yield_when_any_cost_basis_is_missing():
+    """The coupon total still includes uncosted holdings, so dividing it by
+    only the known costs would overstate the portfolio yield."""
+    base = _all_populated()
+    incomplete = Snapshot(
+        total_cost={"USD": Decimal("14750.00")},
+        annual_coupon={"USD": Decimal("760.00")},
+        next_coupon=base.snapshot.next_coupon,
+        uncosted_issuers=["FCN with missing cost"],
+    )
+    d = DigestInput(
+        date_str=base.date_str,
+        news=base.news,
+        fx=base.fx,
+        snapshot=incomplete,
+        cashflow=base.cashflow,
+        exceptions=base.exceptions,
+    )
+
+    out = render(d)
+
+    assert "預估年息：760.00 USD" in out
+    assert "殖利率" not in out
+    assert "FCN with missing cost：成本不明" in out
+
+
 def test_fx_line_appends_as_of_when_rate_is_stale():
     """If the Frankfurter rate is dated to a prior business day (weekend,
     holiday, or pre-CET-noon weekday digest), surface that on the USD/CHF

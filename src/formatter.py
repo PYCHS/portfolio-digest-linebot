@@ -155,7 +155,11 @@ def render(d: DigestInput) -> str:
             # present so the reader doesn't have to do the division. Skip when
             # cost is missing or zero — printing "0.00% yield" would be
             # misleading vs. saying nothing.
-            if cost and cost > 0:
+            # annual_coupon deliberately includes rows whose cost is missing.
+            # If any such row exists, dividing the full coupon total by only
+            # the known costs would produce a precise-looking but overstated
+            # portfolio yield, so keep showing the coupon and omit the ratio.
+            if cost and cost > 0 and not s.uncosted_issuers:
                 yield_pct = (coupon / cost * Decimal(100)).quantize(
                     YIELD_QUANTUM, rounding=ROUND_HALF_UP
                 )
