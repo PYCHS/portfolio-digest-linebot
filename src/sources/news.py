@@ -182,7 +182,9 @@ def fetch_news(
     if not isinstance(issuers, list):
         return None, ["news: watchlist malformed ('issuers' must be a list)"]
 
-    settings = wl.get("settings") or {}
+    settings = wl.get("settings")
+    if settings is None:
+        settings = {}
     if not isinstance(settings, dict):
         return None, ["news: watchlist malformed ('settings' must be a mapping)"]
     # `lookback_hours` is canonically under settings, but a top-level value is

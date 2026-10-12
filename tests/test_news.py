@@ -360,7 +360,10 @@ def test_watchlist_rejects_non_list_issuers(tmp_path, issuers):
     assert exc == ["news: watchlist malformed ('issuers' must be a list)"]
 
 
-@pytest.mark.parametrize("settings", ["invalid", "[one, two]"])
+@pytest.mark.parametrize(
+    "settings",
+    ["invalid", "[one, two]", "[]", "false", "0", "''"],
+)
 def test_watchlist_rejects_non_mapping_settings(tmp_path, settings):
     bad = tmp_path / "bad.yaml"
     bad.write_text(
