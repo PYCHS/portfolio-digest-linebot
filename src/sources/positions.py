@@ -226,9 +226,22 @@ def load_positions(
             except ValueError as exc:
                 exceptions.append(f"positions row {n}: {exc}")
                 continue
+            coupons_per_year = len(occurrences)
+            # A full ISO maturity date gives us an exact upper bound. Keep
+            # legacy year-only values backward-compatible rather than
+            # guessing which day in that year the bond matures.
+            maturity: Date | None = None
+            maturity_raw = (row.get("maturity") or "").strip()
+            if maturity_raw:
+                try:
+                    maturity = Date.fromisoformat(maturity_raw)
+                except ValueError:
+                    pass
+            if maturity is not None:
+                occurrences = [d for d in occurrences if d <= maturity]
             in_window = [d for d in occurrences if today <= d <= window_end]
             if in_window:
-                amt = _per_coupon_amount(annual, semi, len(occurrences))
+                amt = _per_coupon_amount(annual, semi, coupons_per_year)
                 if amt is not None:
                     next_date = min(in_window)
                     candidates.append(

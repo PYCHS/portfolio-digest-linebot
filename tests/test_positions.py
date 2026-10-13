@@ -86,6 +86,28 @@ def test_year_rollover_for_january_coupon(tmp_path):
     assert snap.next_coupon.date == date(2027, 1, 5)
 
 
+def test_next_coupon_does_not_extend_past_exact_maturity(tmp_path):
+    csv_path = tmp_path / "positions_maturity.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Expired Before Coupon,XS0,20250101,100,5.00,2026-04-30,"
+        "100.00,10000.00,500.00,250.00,5,5,5/01\n"
+        "bond,Final Coupon,XS1,20250101,100,5.00,2026-05-01,"
+        "100.00,10000.00,500.00,250.00,5,5,5/01;11/01\n",
+        encoding="utf-8",
+    )
+
+    snap, exc = load_positions(csv_path, today=TODAY)
+
+    assert exc == []
+    assert snap.next_coupon is not None
+    assert snap.next_coupon.issuer == "Final Coupon"
+    assert snap.next_coupon.date == date(2026, 5, 1)
+    assert snap.next_coupon.amount == Decimal("250.00")
+
+
 def test_missing_required_columns_returns_full_gap():
     snap, exc = load_positions(FIXTURES / "positions_missing_columns.csv", today=TODAY)
     assert snap is None
