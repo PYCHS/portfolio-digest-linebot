@@ -269,6 +269,23 @@ def test_missing_positions_file_is_reported_without_any_request(tmp_path, reques
     assert requests_mock.request_history == []
 
 
+def test_missing_quote_identity_columns_are_reported_before_any_request(
+    tmp_path, requests_mock
+):
+    positions = tmp_path / "positions.csv"
+    positions.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,coupon_rate_pct\n"
+        "bond,Incomplete Bond,US260543BY86,9.40\n",
+        encoding="utf-8",
+    )
+
+    got, exc = fetch_quotes(positions, TODAY)
+
+    assert got == {}
+    assert exc == ["quotes: positions missing columns ['maturity']"]
+    assert requests_mock.request_history == []
+
+
 def test_invalid_utf8_positions_file_is_reported_without_any_request(
     tmp_path, requests_mock
 ):

@@ -45,6 +45,7 @@ USER_AGENT = (
 MIN_PRICE = Decimal("20")
 MAX_PRICE = Decimal("300")
 COUPON_TOLERANCE = Decimal("0.005")
+REQUIRED_TARGET_COLUMNS = {"isin_or_code", "coupon_rate_pct", "maturity"}
 
 # Public.com renders label/value pairs through CSS modules, so the class name
 # carries a build hash in the middle but keeps a stable __label / __value
@@ -113,7 +114,11 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
         return [], ["quotes: positions file not found"]
     try:
         with path.open(encoding="utf-8-sig", newline="") as f:
-            rows = list(csv.DictReader(f))
+            reader = csv.DictReader(f)
+            missing = REQUIRED_TARGET_COLUMNS - set(reader.fieldnames or [])
+            if missing:
+                return [], [f"quotes: positions missing columns {sorted(missing)}"]
+            rows = list(reader)
     except (OSError, UnicodeError) as e:
         return [], [f"quotes: positions read error: {e}"]
 
