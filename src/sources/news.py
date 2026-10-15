@@ -181,6 +181,11 @@ def fetch_news(
     issuers = wl["issuers"]
     if not isinstance(issuers, list):
         return None, ["news: watchlist malformed ('issuers' must be a list)"]
+    for index, issuer in enumerate(issuers, start=1):
+        if not isinstance(issuer, dict):
+            return None, [
+                f"news: watchlist malformed (issuer {index} must be a mapping)"
+            ]
 
     settings = wl.get("settings")
     if settings is None:
@@ -225,8 +230,6 @@ def fetch_news(
     # ---- Planning pass: build per-issuer plans without doing any I/O. ----
     plans: list[dict[str, Any]] = []
     for issuer in issuers:
-        if not isinstance(issuer, dict):
-            continue
         enabled = issuer.get("enabled", True)
         if isinstance(enabled, str):
             enabled = enabled.strip().lower() not in {"false", "no", "0", "off"}

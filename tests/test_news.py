@@ -360,6 +360,25 @@ def test_watchlist_rejects_non_list_issuers(tmp_path, issuers):
     assert exc == ["news: watchlist malformed ('issuers' must be a list)"]
 
 
+def test_watchlist_rejects_non_mapping_issuer_before_io(tmp_path, requests_mock):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(
+        "issuers:\n"
+        "  - id: ACME\n"
+        f"    rss: [{ACME_RSS_URL}]\n"
+        "  - BETA\n",
+        encoding="utf-8",
+    )
+    seen = tmp_path / "seen.json"
+
+    items, exc = fetch_news(bad, seen, now=NOW)
+
+    assert items is None
+    assert exc == ["news: watchlist malformed (issuer 2 must be a mapping)"]
+    assert requests_mock.request_history == []
+    assert not seen.exists()
+
+
 @pytest.mark.parametrize(
     "settings",
     ["invalid", "[one, two]", "[]", "false", "0", "''"],
