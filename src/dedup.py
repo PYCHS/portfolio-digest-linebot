@@ -5,6 +5,7 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 from rapidfuzz import fuzz
 
@@ -51,7 +52,10 @@ def load_seen(path: Path) -> list[SeenEntry]:
 def save_seen(path: Path, entries: list[SeenEntry]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"entries": [asdict(e) for e in entries]}
-    temp_path = path.with_name(f".{path.name}.tmp")
+    # Give each writer its own temporary file. A fixed name lets overlapping
+    # runs overwrite or unlink one another's in-progress state before the
+    # atomic replace, turning a safe write into a sporadic failure.
+    temp_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
         temp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         temp_path.replace(path)

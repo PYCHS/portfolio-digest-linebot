@@ -102,7 +102,19 @@ def test_save_failure_preserves_existing_seen_file(tmp_path, monkeypatch):
         save_seen(p, entries)
 
     assert p.read_text(encoding="utf-8") == original
-    assert not (tmp_path / ".seen.json.tmp").exists()
+    assert list(tmp_path.glob(".seen.json.*.tmp")) == []
+
+
+def test_save_does_not_reuse_another_writers_temp_file(tmp_path):
+    p = tmp_path / "seen.json"
+    other_writer_temp = tmp_path / ".seen.json.tmp"
+    other_writer_temp.write_text("in progress", encoding="utf-8")
+    entries = [SeenEntry(title_norm="new", first_seen=NOW.isoformat())]
+
+    save_seen(p, entries)
+
+    assert load_seen(p) == entries
+    assert other_writer_temp.read_text(encoding="utf-8") == "in progress"
 
 
 def test_load_seen_returns_empty_for_missing_file(tmp_path):
