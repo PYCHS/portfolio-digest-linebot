@@ -121,6 +121,16 @@ def merge_live_prices(
         if (
             fallback is not None
             and fallback.as_of is not None
+            and live_quote.as_of is None
+        ):
+            exceptions.append(
+                f"quotes {isin}: live quote has no date; keeping dated fallback "
+                f"{fallback.as_of.isoformat()}"
+            )
+            continue
+        if (
+            fallback is not None
+            and fallback.as_of is not None
             and live_quote.as_of is not None
             and live_quote.as_of < fallback.as_of
         ):

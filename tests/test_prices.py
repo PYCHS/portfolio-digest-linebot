@@ -140,3 +140,18 @@ def test_older_live_quote_does_not_replace_newer_stored_fallback():
         "quotes XS0000000001: live quote dated 2026-04-20 is older than "
         "fallback 2026-04-24; keeping fallback"
     ]
+
+
+def test_undated_live_quote_does_not_replace_dated_stored_fallback():
+    stored = {
+        "XS0000000001": PricePoint(Decimal("99.50"), date(2026, 4, 24))
+    }
+    live = {"XS0000000001": PricePoint(Decimal("98.00"), None)}
+
+    merged, exc = merge_live_prices(stored, live)
+
+    assert merged["XS0000000001"] == stored["XS0000000001"]
+    assert exc == [
+        "quotes XS0000000001: live quote has no date; keeping dated fallback "
+        "2026-04-24"
+    ]
