@@ -325,9 +325,12 @@ def generate_greeting(
         text = text.strip()
         if not text:
             raise ValueError("empty greeting")
+        text = _ensure_quote(text, quote)
+        # Validate the final text, not only the model response: restoring a
+        # missing quote can push an otherwise in-budget response over the
+        # limit and crowd the actual portfolio digest out of the LINE message.
         if len(text) > MAX_GREETING_CHARS:
             raise ValueError("greeting too long")
-        text = _ensure_quote(text, quote)
         lines = [line for line in text.splitlines() if line.strip()]
         if len(lines) != 3:
             raise ValueError("greeting must have exactly three lines")

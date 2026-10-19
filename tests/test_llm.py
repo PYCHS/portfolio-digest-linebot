@@ -345,3 +345,20 @@ def test_generate_greeting_over_line_budget_falls_back(requests_mock):
 
     assert text == fallback_greeting(today)
     assert exc == ["llm greeting: ValueError"]
+
+
+def test_quote_repair_cannot_push_greeting_over_budget(requests_mock):
+    today = date(2026, 8, 4)
+    suffix = "\n短\n笑"
+    model_text = "早" * (MAX_GREETING_CHARS - len(suffix)) + suffix
+    assert len(model_text) == MAX_GREETING_CHARS
+    assert quote_of_the_day(today) not in model_text
+    requests_mock.post(
+        API_URL,
+        json={"content": [{"type": "text", "text": model_text}]},
+    )
+
+    text, exc = generate_greeting(today, api_key="k")
+
+    assert text == fallback_greeting(today)
+    assert exc == ["llm greeting: ValueError"]
