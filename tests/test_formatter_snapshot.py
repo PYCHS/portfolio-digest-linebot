@@ -640,6 +640,29 @@ def test_unrealized_total_drops_the_caveat_when_everything_is_quoted():
     assert "未含" not in out
 
 
+def test_unrealized_missing_quote_caveat_is_scoped_to_its_currency():
+    usd_quoted, usd_unquoted = _all_populated().snapshot.prices
+    chf_quoted = HoldingPrice(
+        name="CHF Bond",
+        currency="CHF",
+        buy_price=Decimal("100.00"),
+        current_price=Decimal("101.00"),
+        as_of=date(2026, 4, 24),
+        change_pct=Decimal("1.00"),
+        pnl=Decimal("50.00"),
+    )
+    snap = _snapshot_with_prices(
+        prices=[usd_quoted, usd_unquoted, chf_quoted],
+        unrealized={"USD": Decimal("75.00"), "CHF": Decimal("50.00")},
+    )
+
+    out = render(_with_snapshot(snap))
+
+    assert "- 合計未實現：+75.00 USD（未含 1 檔無報價）" in out
+    assert "- 合計未實現：+50.00 CHF\n" in out
+    assert "CHF（未含" not in out
+
+
 def test_missing_quote_file_is_a_reported_data_gap():
     """Every bond unquoted means prices.csv is absent or empty — that has to
     show up in Notes rather than looking like a flat market."""

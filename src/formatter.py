@@ -213,9 +213,13 @@ def render(d: DigestInput) -> str:
             lines.append(_price_line(h))
         # Flagged rather than hidden: a total that quietly skips two unquoted
         # bonds is worse than no total at all.
-        unquoted = sum(1 for h in s.prices if h.current_price is None)
-        suffix = f"（未含 {unquoted} 檔無報價）" if unquoted else ""
         for ccy in sorted(s.unrealized):
+            unquoted = sum(
+                1
+                for h in s.prices
+                if h.currency == ccy and h.current_price is None
+            )
+            suffix = f"（未含 {unquoted} 檔無報價）" if unquoted else ""
             lines.append(f"- 合計未實現：{s.unrealized[ccy]:+,.2f} {ccy}{suffix}")
     lines.append("")
 
