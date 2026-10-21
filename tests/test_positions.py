@@ -185,15 +185,17 @@ def test_non_finite_buy_price_rejected_and_row_treated_as_uncosted(tmp_path):
     assert any("non-finite buy_price" in e for e in exc)
 
 
-def test_negative_cost_is_excluded_from_portfolio_total(tmp_path):
-    csv_path = tmp_path / "negative_cost.csv"
+def test_non_positive_cost_is_excluded_from_portfolio_total(tmp_path):
+    csv_path = tmp_path / "non_positive_cost.csv"
     csv_path.write_text(
         "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
         "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
         "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
         "bond,Invalid Cost,XS0,20250101,100,5.00,2030,"
         "100.00,-10000.00,500.00,250.00,5,5,12/01\n"
-        "bond,Valid Cost,XS1,20250101,200,5.00,2030,"
+        "bond,Zero Cost,XS1,20250101,100,5.00,2030,"
+        "100.00,0,500.00,250.00,5,5,12/01\n"
+        "bond,Valid Cost,XS2,20250101,200,5.00,2030,"
         "100.00,20000.00,1000.00,500.00,5,5,12/01\n",
         encoding="utf-8",
     )
@@ -202,8 +204,11 @@ def test_negative_cost_is_excluded_from_portfolio_total(tmp_path):
 
     assert snap is not None
     assert snap.total_cost == {"USD": Decimal("20000.00")}
-    assert snap.uncosted_issuers == ["Invalid Cost"]
-    assert exc == ["positions row 2: negative cost '-10000.00'"]
+    assert snap.uncosted_issuers == ["Invalid Cost", "Zero Cost"]
+    assert exc == [
+        "positions row 2: non-positive cost '-10000.00'",
+        "positions row 3: non-positive cost '0'",
+    ]
 
 
 def test_non_positive_buy_price_is_excluded_from_portfolio_total(tmp_path):

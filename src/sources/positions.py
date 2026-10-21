@@ -159,9 +159,9 @@ def load_positions(
 
         cost = _parse_decimal_field(row, "cost", n, exceptions)
         buy_price = _parse_decimal_field(row, "buy_price", n, exceptions)
-        if cost is not None and cost < 0:
+        if cost is not None and cost <= 0:
             exceptions.append(
-                f"positions row {n}: negative cost '{row.get('cost')}'"
+                f"positions row {n}: non-positive cost '{row.get('cost')}'"
             )
             cost = None
         if buy_price is not None and buy_price <= 0:
