@@ -163,6 +163,25 @@ def test_position_coupons_stop_at_maturity_date(tmp_path):
     assert proj.net == {"USD": Decimal("600.00")}
 
 
+def test_invalid_exact_maturity_is_not_projected(tmp_path):
+    positions = _write(
+        tmp_path,
+        "positions.csv",
+        POSITIONS_HEADER
+        + "bond,Bad Maturity,US91324PFK30,,1000,5,2026-02-30,"
+        "100,100000,1200,600,5,5,8/10;9/10\n"
+        + "bond,Legacy Year,US718172BD03,,1000,5,2044,"
+        "100,100000,1000,500,5,5,8/8;2/8\n",
+    )
+
+    proj, exc = project_cashflows(positions, tmp_path / "nope.csv", TODAY)
+
+    assert [(event.label, event.amount) for event in proj.events] == [
+        ("Legacy Year 配息", Decimal("500"))
+    ]
+    assert exc == ["schedule: positions row 2: bad maturity '2026-02-30'"]
+
+
 def test_recurring_monthly_with_end_date(tmp_path):
     recurring = _write(
         tmp_path,

@@ -26,7 +26,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from ..models import CashflowEvent, Projection
-from .coupon_dates import parse_coupon_month_days
+from .coupon_dates import parse_coupon_month_days, parse_exact_maturity
 
 RECURRING_HEADER = [
     "label",
@@ -278,13 +278,12 @@ def _load_position_coupon_events(
         # A bond's final coupon may be paid on its maturity date, but never
         # after it. Older files sometimes contain only a maturity year; keep
         # those backward-compatible rather than guessing a day within it.
-        maturity: Date | None = None
         maturity_raw = (row.get("maturity") or "").strip()
-        if maturity_raw:
-            try:
-                maturity = Date.fromisoformat(maturity_raw)
-            except ValueError:
-                pass
+        try:
+            maturity = parse_exact_maturity(maturity_raw)
+        except ValueError as exc:
+            exceptions.append(f"schedule: positions row {row_n}: {exc}")
+            continue
         payment_end = min(horizon_end, maturity) if maturity else horizon_end
         if payment_end < today:
             continue

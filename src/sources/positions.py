@@ -6,7 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 
 from ..models import Coupon, HoldingPrice, PricePoint, Snapshot
-from .coupon_dates import parse_coupon_month_days
+from .coupon_dates import parse_coupon_month_days, parse_exact_maturity
 
 REQUIRED_COLUMNS = {
     "instrument_type",
@@ -232,13 +232,12 @@ def load_positions(
             # A full ISO maturity date gives us an exact upper bound. Keep
             # legacy year-only values backward-compatible rather than
             # guessing which day in that year the bond matures.
-            maturity: Date | None = None
             maturity_raw = (row.get("maturity") or "").strip()
-            if maturity_raw:
-                try:
-                    maturity = Date.fromisoformat(maturity_raw)
-                except ValueError:
-                    pass
+            try:
+                maturity = parse_exact_maturity(maturity_raw)
+            except ValueError as exc:
+                exceptions.append(f"positions row {n}: {exc}")
+                continue
             if maturity is not None:
                 occurrences = [d for d in occurrences if d <= maturity]
             in_window = [d for d in occurrences if today <= d <= window_end]

@@ -109,6 +109,24 @@ def test_next_coupon_does_not_extend_past_exact_maturity(tmp_path):
     assert snap.next_coupon.amount == Decimal("250.00")
 
 
+def test_invalid_exact_maturity_is_not_ignored(tmp_path):
+    csv_path = tmp_path / "positions_bad_maturity.csv"
+    csv_path.write_text(
+        "instrument_type,issuer_or_name,isin_or_code,trade_date,quantity,"
+        "coupon_rate_pct,maturity,buy_price,cost,annual_interest,"
+        "semiannual_interest,yield_pct_table,current_yield_pct,coupon_dates\n"
+        "bond,Bad Maturity,XS0,20250101,100,5.00,2026-02-30,"
+        "100.00,10000.00,500.00,250.00,5,5,5/01\n",
+        encoding="utf-8",
+    )
+
+    snap, exc = load_positions(csv_path, today=TODAY)
+
+    assert snap is not None
+    assert snap.next_coupon is None
+    assert exc == ["positions row 2: bad maturity '2026-02-30'"]
+
+
 def test_missing_required_columns_returns_full_gap():
     snap, exc = load_positions(FIXTURES / "positions_missing_columns.csv", today=TODAY)
     assert snap is None
