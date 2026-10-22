@@ -156,10 +156,13 @@ def render(d: DigestInput) -> str:
             # cost is missing or zero — printing "0.00% yield" would be
             # misleading vs. saying nothing.
             # annual_coupon deliberately includes rows whose cost is missing.
-            # If any such row exists, dividing the full coupon total by only
-            # the known costs would produce a precise-looking but overstated
-            # portfolio yield, so keep showing the coupon and omit the ratio.
-            if cost and cost > 0 and not s.uncosted_issuers:
+            # Omit the ratio only for currencies affected by those rows. The
+            # empty-set fallback preserves safe behavior for older callers
+            # that populated uncosted_issuers without currency metadata.
+            incomplete_cost = bool(s.uncosted_issuers) and (
+                not s.uncosted_currencies or ccy in s.uncosted_currencies
+            )
+            if cost and cost > 0 and not incomplete_cost:
                 yield_pct = (coupon / cost * Decimal(100)).quantize(
                     YIELD_QUANTUM, rounding=ROUND_HALF_UP
                 )

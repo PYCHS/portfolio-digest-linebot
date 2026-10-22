@@ -142,6 +142,7 @@ def load_positions(
     total_cost: dict[str, Decimal] = {}
     annual_coupon: dict[str, Decimal] = {}
     uncosted_issuers: list[str] = []
+    uncosted_currencies: set[str] = set()
     candidates: list[tuple[int, Coupon]] = []
     exceptions: list[str] = []
     holding_prices: list[HoldingPrice] = []
@@ -172,6 +173,7 @@ def load_positions(
             buy_price = None
         if cost is None or buy_price is None:
             uncosted_issuers.append(issuer)
+            uncosted_currencies.add(ccy)
         else:
             total_cost[ccy] = total_cost.get(ccy, Decimal("0.00")) + cost
 
@@ -256,6 +258,7 @@ def load_positions(
         annual_coupon=annual_coupon,
         next_coupon=next_coupon,
         uncosted_issuers=uncosted_issuers,
+        uncosted_currencies=frozenset(uncosted_currencies),
         prices=holding_prices,
         unrealized=unrealized,
         price_as_of_min=min(quote_dates) if quote_dates else None,

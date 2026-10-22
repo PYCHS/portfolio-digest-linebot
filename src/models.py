@@ -124,6 +124,8 @@ class Snapshot:
     annual_coupon: dict[str, Decimal]
     next_coupon: Coupon | None
     uncosted_issuers: list[str] = field(default_factory=list)
+    # Currencies containing at least one holding with an unknown cost basis.
+    uncosted_currencies: frozenset[str] = field(default_factory=frozenset)
     # M12 — current vs. entry price, in positions.csv order.
     prices: list[HoldingPrice] = field(default_factory=list)
     # Unrealized P/L per currency, summed over quoted holdings only.

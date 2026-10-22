@@ -32,6 +32,7 @@ def test_uncosted_row_excluded_from_total_cost_but_annual_coupon_still_summed():
     assert snap.total_cost == {"USD": Decimal("985000.00")}
     assert snap.annual_coupon == {"USD": Decimal("51200.00")}
     assert snap.uncosted_issuers == ["Sample FCN"]
+    assert snap.uncosted_currencies == frozenset({"USD"})
 
 
 def test_currency_column_used_when_present():
