@@ -174,6 +174,31 @@ def test_non_positive_rate_returns_full_gap(requests_mock, rate):
     assert exc == ["fx: latest fetch failed: ValueError"]
 
 
+@pytest.mark.parametrize(
+    ("rate", "error_type"),
+    [
+        ("0.00001", "ValueError"),
+        ("100000", "ValueError"),
+        ("1E+999999", "InvalidOperation"),
+    ],
+)
+def test_rate_outside_output_precision_returns_gap_without_more_requests(
+    requests_mock, rate, error_type
+):
+    requests_mock.get(
+        LATEST,
+        json={"date": "2026-04-25", "rates": {"CHF": rate}},
+    )
+
+    fx, exc = fetch_fx()
+
+    assert fx is None
+    assert exc == [f"fx: latest fetch failed: {error_type}"]
+    assert [request.url for request in requests_mock.request_history] == [
+        LATEST + "?from=USD&to=CHF"
+    ]
+
+
 def test_fetch_sends_user_agent_header(requests_mock):
     """Frankfurter doesn't 403 the default UA today, but every other HTTP
     call in the project identifies itself; keep FX consistent so a future

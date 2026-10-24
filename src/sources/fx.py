@@ -107,6 +107,17 @@ def fetch_fx(
     """
     try:
         date_t, usd_chf = _fetch(base_url, "latest", timeout)
+        usd_chf_q = usd_chf.quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)
+        # A positive source value can still round to 0.0000, which would make
+        # the reciprocal below raise DivisionByZero. Treat values outside the
+        # output precision as malformed provider data instead of crashing.
+        if usd_chf_q <= 0:
+            raise ValueError(f"rate rounds to zero: {usd_chf!r}")
+        chf_usd_q = (Decimal(1) / usd_chf_q).quantize(
+            RATE_QUANTUM, rounding=ROUND_HALF_UP
+        )
+        if chf_usd_q <= 0:
+            raise ValueError(f"reciprocal rounds to zero: {usd_chf!r}")
     except _FETCH_ERRORS as e:
         return None, [f"fx: latest fetch failed: {type(e).__name__}"]
     digest_date = today or Date.today()
@@ -136,8 +147,6 @@ def fetch_fx(
     except _FETCH_ERRORS as e:
         exceptions.append(f"fx: TWD fetch failed: {type(e).__name__}")
 
-    usd_chf_q = usd_chf.quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)
-    chf_usd_q = (Decimal(1) / usd_chf_q).quantize(RATE_QUANTUM, rounding=ROUND_HALF_UP)
     return (
         FxResult(
             usd_chf=usd_chf_q,
