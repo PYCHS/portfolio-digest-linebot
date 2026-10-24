@@ -57,6 +57,9 @@ def load_ledger(
         date_s = raw[0].strip()
         amount_s = raw[1].strip()
         currency_s = raw[2].strip()
+        if not currency_s:
+            exceptions.append(f"ledger row {n}: missing currency")
+            continue
 
         try:
             d = Date.fromisoformat(date_s)

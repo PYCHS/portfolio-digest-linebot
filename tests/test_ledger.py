@@ -113,6 +113,22 @@ def test_too_few_columns_logs_exception_and_keeps_valid_rows(tmp_path):
     assert exc == ["ledger row 2: too few columns"]
 
 
+def test_blank_currency_reports_row_and_keeps_valid_transactions(tmp_path):
+    p = tmp_path / "blank_currency.csv"
+    p.write_text(
+        "date,amount,currency,category,description\n"
+        "2026-04-25,55.00,,coupon,missing currency\n"
+        "2026-04-25,20.00,USD,coupon,valid\n",
+        encoding="utf-8",
+    )
+
+    cf, exc = load_ledger(p, today=TODAY)
+
+    assert cf is not None
+    assert cf.today["USD"] == Decimal("20.00")
+    assert exc == ["ledger row 2: missing currency"]
+
+
 def test_non_finite_amount_rejected_with_exception(tmp_path):
     # Decimal accepts "Infinity" and "NaN" — these must not flow into sums.
     p = tmp_path / "nonfinite.csv"
