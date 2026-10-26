@@ -33,13 +33,17 @@ def _parse_as_of(raw: str, row_n: int, exceptions: list[str]) -> Date | None:
     return None
 
 
-def load_prices(path: Path) -> tuple[dict[str, PricePoint] | None, list[str]]:
+def load_prices(
+    path: Path, *, today: Date | None = None
+) -> tuple[dict[str, PricePoint] | None, list[str]]:
     """Read prices.csv into an ISIN-keyed quote map.
 
     Returns (None, [reason]) when the file is absent or unusable, which the
     formatter renders as a data gap rather than as "no change". Rows with a
     blank price are skipped silently on purpose: seeding the file with every
-    ISIN and filling the numbers in later is the expected workflow.
+    ISIN and filling the numbers in later is the expected workflow. When
+    ``today`` is provided, a future ``as_of`` is treated like any other bad
+    optional date: the price remains usable, but its date is dropped.
     """
     if not path.exists():
         return None, []
@@ -81,6 +85,12 @@ def load_prices(path: Path) -> tuple[dict[str, PricePoint] | None, list[str]]:
         raw_as_of = (row.get("as_of") or "").strip() if has_as_of else ""
         if raw_as_of:
             as_of = _parse_as_of(raw_as_of, n, exceptions)
+            if as_of is not None and today is not None and as_of > today:
+                exceptions.append(
+                    f"prices row {n}: as_of {as_of.isoformat()} is after "
+                    f"digest date {today.isoformat()}"
+                )
+                as_of = None
 
         # Last row normally wins, so appending a fresh quote does what it looks
         # like it does. When both rows are dated, however, do not let an older

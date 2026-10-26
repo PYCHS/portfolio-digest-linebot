@@ -66,6 +66,23 @@ def test_unparseable_date_keeps_the_price_but_drops_the_date():
     assert prices["US0000000004"].as_of is None
 
 
+def test_future_date_keeps_the_price_but_drops_the_date(tmp_path):
+    path = tmp_path / "prices.csv"
+    path.write_text(
+        "isin_or_code,price,as_of\n"
+        "XS0000000001,99.5000,2026-04-26\n",
+        encoding="utf-8",
+    )
+
+    prices, exc = load_prices(path, today=date(2026, 4, 25))
+
+    assert prices["XS0000000001"].price == Decimal("99.5000")
+    assert prices["XS0000000001"].as_of is None
+    assert exc == [
+        "prices row 2: as_of 2026-04-26 is after digest date 2026-04-25"
+    ]
+
+
 def test_blank_price_rows_are_skipped_without_complaint():
     """prices.csv is meant to be seeded with every ISIN and filled in later,
     so a placeholder row is normal, not an error."""

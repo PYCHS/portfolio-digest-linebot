@@ -150,7 +150,8 @@ def build_digest(
     prices: dict[str, PricePoint] | None = None
     try:
         prices, price_exc = load_prices(
-            prices_path if prices_path is not None else Path("private/prices.csv")
+            prices_path if prices_path is not None else Path("private/prices.csv"),
+            today=today,
         )
         exceptions.extend(price_exc)
     except Exception as e:
