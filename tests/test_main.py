@@ -1,3 +1,4 @@
+import os
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -136,6 +137,24 @@ def test_default_run_renders_to_stdout_without_pushing(
     assert "每日投資摘要" in out
     # No POST to LINE was made
     assert not any("line.me" in r.url for r in requests_mock.request_history)
+
+
+def test_direct_cli_loads_dotenv_from_working_directory(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    (tmp_path / ".env").write_text("LOG_LEVEL=not-a-level\n", encoding="utf-8")
+
+    try:
+        rc = main(["--dry-run"])
+    finally:
+        # python-dotenv writes directly to os.environ, outside monkeypatch's
+        # bookkeeping, so keep this test isolated from the rest of the suite.
+        os.environ.pop("LOG_LEVEL", None)
+
+    assert rc == 2
+    assert "invalid LOG_LEVEL" in capsys.readouterr().err
 
 
 def test_push_flag_sends_rendered_message_to_line_group(

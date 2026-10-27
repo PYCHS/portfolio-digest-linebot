@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from dotenv import load_dotenv
+
 from .formatter import render
 from .line_client import push_message
 from .llm import DEFAULT_MODEL, analyze_news, fallback_greeting, generate_greeting
@@ -206,6 +208,11 @@ def build_digest(
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Match the documented local workflow (`cp .env.example .env` followed by
+    # `python -m src.main`). Existing process variables keep priority, so CI,
+    # cron, and explicit shell configuration are never overwritten.
+    load_dotenv(Path.cwd() / ".env", override=False)
+
     parser = argparse.ArgumentParser(prog="portfolio-digest")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
