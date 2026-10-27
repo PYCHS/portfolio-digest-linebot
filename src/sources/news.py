@@ -34,6 +34,8 @@ MAX_PARALLEL_FETCHES = 16
 # a quiet success instead of a Notes/Exceptions line.
 FETCH_MAX_ATTEMPTS = 2
 FETCH_RETRY_BACKOFF_SEC = 0.5
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+_FALSE_VALUES = {"0", "false", "no", "off"}
 
 
 def _fetch_entries(url: str, timeout: float) -> list[dict[str, Any]]:
@@ -147,6 +149,21 @@ def _normalize_keywords(value: Any) -> list[str]:
     ]
 
 
+def _parse_enabled(value: Any) -> bool:
+    """Parse an issuer's enabled flag without letting typos enable I/O."""
+    if type(value) is bool:
+        return value
+    if type(value) is int and value in {0, 1}:
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in _TRUE_VALUES:
+            return True
+        if normalized in _FALSE_VALUES:
+            return False
+    raise ValueError("enabled must be a boolean")
+
+
 def fetch_news(
     watchlist_path: Path,
     seen_path: Path,
@@ -185,6 +202,12 @@ def fetch_news(
         if not isinstance(issuer, dict):
             return None, [
                 f"news: watchlist malformed (issuer {index} must be a mapping)"
+            ]
+        try:
+            _parse_enabled(issuer.get("enabled", True))
+        except ValueError:
+            return None, [
+                f"news: watchlist malformed (issuer {index} has invalid enabled)"
             ]
 
     settings = wl.get("settings")
@@ -230,10 +253,7 @@ def fetch_news(
     # ---- Planning pass: build per-issuer plans without doing any I/O. ----
     plans: list[dict[str, Any]] = []
     for issuer in issuers:
-        enabled = issuer.get("enabled", True)
-        if isinstance(enabled, str):
-            enabled = enabled.strip().lower() not in {"false", "no", "0", "off"}
-        if not enabled:
+        if not _parse_enabled(issuer.get("enabled", True)):
             continue
         # `id` is the canonical label; fall back to `name` so an issuer without
         # an explicit id still produces a usable digest line and isn't silently
