@@ -12,7 +12,6 @@ dependencies = [
     "feedparser>=6.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.0",
-    "python-dateutil>=2.9",
     "rapidfuzz>=3.6",
 ]
 
