@@ -7,6 +7,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
@@ -35,7 +36,10 @@ def _restore_file(path: Path, *, existed: bool, content: bytes) -> None:
         path.unlink(missing_ok=True)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.rollback.tmp")
+    # Overlapping scheduled/manual runs may both need to roll back after a
+    # failed push. Give each one its own temporary file so neither writer can
+    # overwrite or unlink the other's in-progress restore.
+    temp_path = path.with_name(f".{path.name}.{uuid4().hex}.rollback.tmp")
     try:
         temp_path.write_bytes(content)
         temp_path.replace(path)

@@ -267,6 +267,23 @@ def test_push_failure_returns_rc3(
     assert paths["seen"].read_text(encoding="utf-8") == original_seen
 
 
+def test_restore_does_not_reuse_another_runs_temp_file(tmp_path):
+    seen = tmp_path / "seen.json"
+    seen.write_text("new state", encoding="utf-8")
+    other_run_temp = tmp_path / ".seen.json.rollback.tmp"
+    other_run_temp.write_text("restore in progress", encoding="utf-8")
+
+    main_module._restore_file(
+        seen,
+        existed=True,
+        content=b"original state",
+    )
+
+    assert seen.read_bytes() == b"original state"
+    assert other_run_temp.read_text(encoding="utf-8") == "restore in progress"
+    assert list(tmp_path.glob(".seen.json.*.rollback.tmp")) == []
+
+
 def test_push_and_dry_run_are_mutually_exclusive(capsys):
     with pytest.raises(SystemExit):
         main(["--push", "--dry-run"])
