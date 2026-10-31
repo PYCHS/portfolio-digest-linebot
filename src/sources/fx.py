@@ -144,7 +144,10 @@ def fetch_fx(
         usd_twd = _fetch_twd(twd_url, timeout).quantize(
             RATE_QUANTUM, rounding=ROUND_HALF_UP
         )
+        if usd_twd <= 0:
+            raise ValueError("TWD rate rounds to zero")
     except _FETCH_ERRORS as e:
+        usd_twd = None
         exceptions.append(f"fx: TWD fetch failed: {type(e).__name__}")
 
     return (

@@ -317,3 +317,16 @@ def test_unusable_twd_rate_is_dropped_rather_than_rendered(requests_mock, bad):
     fx, exc = fetch_fx()
     assert fx.usd_twd is None
     assert exc and exc[0].startswith("fx: TWD fetch failed")
+
+
+def test_twd_rate_below_output_precision_is_dropped(requests_mock):
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(PRIOR, json={"date": "2026-04-24", "rates": {"CHF": 0.9134}})
+    requests_mock.get(TWD, json={"rates": {"TWD": "0.00001"}})
+
+    fx, exc = fetch_fx()
+
+    assert fx is not None
+    assert fx.usd_chf == Decimal("0.9123")
+    assert fx.usd_twd is None
+    assert exc == ["fx: TWD fetch failed: ValueError"]
