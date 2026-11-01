@@ -1,3 +1,4 @@
+import csv
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -52,6 +53,50 @@ def test_invalid_recurring_encoding_does_not_discard_position_events(tmp_path):
 def test_invalid_positions_encoding_does_not_discard_recurring_events(tmp_path):
     positions = tmp_path / "positions.csv"
     positions.write_bytes(b"\xff\xfe")
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER + "Valid payout,USD,10,once:2026-08-08,,,other,0\n",
+    )
+
+    proj, exc = project_cashflows(positions, recurring, TODAY)
+
+    assert [e.label for e in proj.events] == ["Valid payout"]
+    assert len(exc) == 1
+    assert exc[0].startswith("schedule: positions read error:")
+
+
+def test_malformed_recurring_csv_does_not_discard_position_events(tmp_path):
+    positions = _write(
+        tmp_path,
+        "positions.csv",
+        POSITIONS_HEADER
+        + "bond,Valid Bond,US91324PFK30,,1000,5,2044,100,100000,1000,500,5,5,8/8\n",
+    )
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + "X" * (csv.field_size_limit() + 1)
+        + ",USD,10,once:2026-08-08,,,other,0\n",
+    )
+
+    proj, exc = project_cashflows(positions, recurring, TODAY)
+
+    assert [e.label for e in proj.events] == ["Valid Bond 配息"]
+    assert len(exc) == 1
+    assert exc[0].startswith("recurring: read error:")
+
+
+def test_malformed_positions_csv_does_not_discard_recurring_events(tmp_path):
+    positions = _write(
+        tmp_path,
+        "positions.csv",
+        POSITIONS_HEADER
+        + "bond,"
+        + "X" * (csv.field_size_limit() + 1)
+        + ",US91324PFK30,,1000,5,2044,100,100000,1000,500,5,5,8/8\n",
+    )
     recurring = _write(
         tmp_path,
         "recurring.csv",
