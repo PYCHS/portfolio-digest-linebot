@@ -341,6 +341,31 @@ def test_invalid_utf8_llm_context_falls_back_without_crashing(
     assert "每日投資摘要" in capsys.readouterr().out
 
 
+def test_llm_api_key_whitespace_is_stripped_before_use(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "  test-llm-key\n")
+    observed_keys = []
+
+    def fake_greeting(today, *, api_key, model):
+        observed_keys.append(api_key)
+        return "早安\n今日名言\n今日笑話", []
+
+    def fake_analysis(news, *, api_key, model, context):
+        observed_keys.append(api_key)
+        return news, None, []
+
+    monkeypatch.setattr(main_module, "generate_greeting", fake_greeting)
+    monkeypatch.setattr(main_module, "analyze_news", fake_analysis)
+
+    assert main(["--dry-run"]) == 0
+    assert observed_keys == ["test-llm-key", "test-llm-key"]
+    assert "每日投資摘要" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("value", ["0", "-1"])
 def test_non_positive_projection_days_returns_rc2(monkeypatch, capsys, value):
     monkeypatch.setenv("PROJECTION_DAYS", value)

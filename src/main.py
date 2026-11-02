@@ -299,6 +299,11 @@ def main(argv: list[str] | None = None) -> int:
             # continue, but there is no safe snapshot available to restore.
             seen_snapshot = None
 
+    # Secret editors and copied .env values can leave surrounding whitespace.
+    # Normalize the key before both LLM calls so an otherwise valid credential
+    # does not fail authentication because of a trailing newline.
+    llm_api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or None
+
     digest = build_digest(
         now=now,
         watchlist_path=Path(os.environ.get("WATCHLIST_PATH", "private/watchlist.yaml")),
@@ -312,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
         persist_seen=args.push,
         recurring_path=Path(os.environ.get("RECURRING_PATH", "private/recurring.csv")),
         projection_days=projection_days,
-        llm_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
+        llm_api_key=llm_api_key,
         llm_model=os.environ.get("LLM_MODEL", DEFAULT_MODEL),
         llm_context=llm_context,
     )
