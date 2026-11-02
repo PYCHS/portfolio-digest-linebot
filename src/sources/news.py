@@ -34,6 +34,11 @@ MAX_PARALLEL_FETCHES = 16
 # a quiet success instead of a Notes/Exceptions line.
 FETCH_MAX_ATTEMPTS = 2
 FETCH_RETRY_BACKOFF_SEC = 0.5
+# A malformed feed can otherwise consume most or all of LINE's message budget
+# with one title and prevent the entire digest from being delivered. Real news
+# headlines are far shorter, so this keeps a generous input boundary while
+# treating pathological entries like other unusable feed data.
+MAX_NEWS_TITLE_CHARS = 1000
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _FALSE_VALUES = {"0", "false", "no", "off"}
 
@@ -99,9 +104,14 @@ def _entry_text(entry: dict[str, Any], key: str) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _entry_title(entry: dict[str, Any]) -> str:
+    title = _entry_text(entry, "title")
+    return title if len(title) <= MAX_NEWS_TITLE_CHARS else ""
+
+
 def _entry_is_fresh(entry: dict[str, Any], cutoff: datetime, now: datetime) -> bool:
     """Return whether an entry can satisfy the configured news window."""
-    if not _entry_text(entry, "title"):
+    if not _entry_title(entry):
         return False
     published = _entry_published(entry)
     return published is not None and cutoff <= published <= now
@@ -115,7 +125,7 @@ def _entry_is_new(
     threshold: float,
 ) -> bool:
     """Return whether an entry is fresh and has not already been delivered."""
-    title = _entry_text(entry, "title")
+    title = _entry_title(entry)
     return _entry_is_fresh(entry, cutoff, now) and not is_duplicate(
         title, seen, threshold=threshold
     )
@@ -355,7 +365,7 @@ def fetch_news(
         n_stale = 0
         n_dup = 0
         for entry, src_url in candidate_entries:
-            title = _entry_text(entry, "title")
+            title = _entry_title(entry)
             if not title:
                 continue
             ts = _entry_published(entry)
@@ -388,7 +398,7 @@ def fetch_news(
         for entry, src_url, is_alert, matched_kw in eligible:
             if shown >= max_per_issuer:
                 break
-            title = _entry_text(entry, "title")
+            title = _entry_title(entry)
             # Guard against displaying two near-identical headlines when the
             # cap is > 1 (the first appended makes the second look duplicate).
             if is_duplicate(title, seen, threshold=threshold):

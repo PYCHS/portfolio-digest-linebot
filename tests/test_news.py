@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from src.dedup import SeenEntry, save_seen
-from src.sources.news import fetch_news
+from src.sources.news import MAX_NEWS_TITLE_CHARS, fetch_news
 
 UTC = timezone.utc
 NOW = datetime(2026, 4, 25, 12, 0, 0, tzinfo=UTC)
@@ -169,6 +169,39 @@ def test_stale_direct_feed_uses_google_news_fallback(requests_mock, tmp_path):
     assert exc == []
     assert [item.summary for item in items] == [
         "ACME announces a new partnership"
+    ]
+    assert requests_mock.call_count == 2
+
+
+def test_overlong_direct_headline_uses_google_news_fallback(requests_mock, tmp_path):
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n"
+        "  - id: ACME\n"
+        f"    rss: [{ACME_RSS_URL}]\n",
+        encoding="utf-8",
+    )
+    overlong_title = "A" * (MAX_NEWS_TITLE_CHARS + 1)
+    direct_rss = (
+        '<?xml version="1.0"?><rss version="2.0"><channel><item>'
+        f"<title>{overlong_title}</title>"
+        '<pubDate>Sat, 25 Apr 2026 11:00:00 +0000</pubDate>'
+        '</item></channel></rss>'
+    )
+    fresh_google_rss = (
+        '<?xml version="1.0"?><rss version="2.0"><channel><item>'
+        '<title>ACME publishes a normal update</title>'
+        '<pubDate>Sat, 25 Apr 2026 11:30:00 +0000</pubDate>'
+        '</item></channel></rss>'
+    )
+    requests_mock.get(ACME_RSS_URL, text=direct_rss)
+    requests_mock.get(GN_URL, text=fresh_google_rss)
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+
+    assert exc == []
+    assert [item.summary for item in items] == [
+        "ACME publishes a normal update"
     ]
     assert requests_mock.call_count == 2
 
