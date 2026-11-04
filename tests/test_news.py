@@ -462,6 +462,9 @@ def test_watchlist_rejects_non_mapping_settings(tmp_path, settings):
         "max_items_per_issuer: false",
         "dedup_lookback_days: false",
         "similarity_threshold: true",
+        "lookback_hours: .inf",
+        "max_items_per_issuer: .inf",
+        "dedup_lookback_days: .inf",
     ],
 )
 def test_watchlist_rejects_non_numeric_settings(tmp_path, setting):
@@ -474,7 +477,7 @@ def test_watchlist_rejects_non_numeric_settings(tmp_path, setting):
     items, exc = fetch_news(bad, tmp_path / "seen.json", now=NOW)
 
     assert items is None
-    assert exc == ["news: watchlist malformed (settings must be numeric)"]
+    assert exc == ["news: watchlist malformed (settings must be finite numbers)"]
 
 
 @pytest.mark.parametrize(

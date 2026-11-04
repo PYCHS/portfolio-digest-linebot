@@ -236,14 +236,14 @@ def fetch_news(
     if any(type(value) is bool for value in (
         lookback_raw, max_items_raw, dedup_days_raw, threshold_raw
     )):
-        return None, ["news: watchlist malformed (settings must be numeric)"]
+        return None, ["news: watchlist malformed (settings must be finite numbers)"]
     try:
         lookback_hours = int(lookback_raw)
         max_per_issuer = int(max_items_raw)
         dedup_days = int(dedup_days_raw)
         threshold = float(threshold_raw)
-    except (TypeError, ValueError):
-        return None, ["news: watchlist malformed (settings must be numeric)"]
+    except (TypeError, ValueError, OverflowError):
+        return None, ["news: watchlist malformed (settings must be finite numbers)"]
     if (
         lookback_hours <= 0
         or max_per_issuer <= 0
