@@ -78,6 +78,48 @@ def test_timeout_retry_reuses_key_and_accepts_prior_delivery(requests_mock, monk
     assert first.headers["X-Line-Retry-Key"] == second.headers["X-Line-Retry-Key"]
 
 
+def test_server_error_retry_preserves_split_payload_and_key(requests_mock, monkeypatch):
+    delays = []
+    monkeypatch.setattr("src.line_client.time.sleep", delays.append)
+    requests_mock.post(
+        PUSH_URL,
+        [
+            {"status_code": 503, "json": {"message": "Unavailable"}},
+            {"status_code": 200, "json": {}},
+        ],
+    )
+    text = "x" * LINE_TEXT_LIMIT + "\nSecond part"
+
+    ok, err = push_message(text=text, group_id="C1", access_token="t")
+
+    assert ok is True
+    assert err is None
+    first, second = requests_mock.request_history
+    assert first.headers["X-Line-Retry-Key"] == second.headers["X-Line-Retry-Key"]
+    assert first.json() == second.json()
+    assert first.json()["to"] == "C1"
+    chunks = [message["text"] for message in second.json()["messages"]]
+    assert len(chunks) == 2
+    assert all(len(chunk) <= LINE_TEXT_LIMIT for chunk in chunks)
+    assert "".join(chunks) == text
+    assert delays == [0.5]
+
+
+def test_conflict_without_acceptance_header_is_not_success(requests_mock, monkeypatch):
+    delays = []
+    monkeypatch.setattr("src.line_client.time.sleep", delays.append)
+    requests_mock.post(
+        PUSH_URL, status_code=409, json={"message": "Conflict"}
+    )
+
+    ok, err = push_message(text="hi", group_id="C1", access_token="test-token")
+
+    assert ok is False
+    assert err == "HTTP 409: Conflict"
+    assert requests_mock.call_count == 1
+    assert delays == []
+
+
 def test_non_object_json_error_body_returns_failure(requests_mock):
     requests_mock.post(PUSH_URL, status_code=502, json=["unexpected"])
     ok, err = push_message(text="hi", group_id="C1", access_token="t")
