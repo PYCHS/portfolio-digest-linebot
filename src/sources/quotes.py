@@ -119,7 +119,7 @@ def read_targets(path: Path) -> tuple[list[_Target], list[str]]:
             if missing:
                 return [], [f"quotes: positions missing columns {sorted(missing)}"]
             rows = list(reader)
-    except (OSError, UnicodeError) as e:
+    except (OSError, UnicodeError, csv.Error) as e:
         return [], [f"quotes: positions read error: {e}"]
 
     targets: dict[str, _Target] = {}

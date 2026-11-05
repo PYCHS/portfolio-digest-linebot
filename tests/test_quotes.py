@@ -4,6 +4,7 @@ The two HTML fixtures are trimmed captures of the real pages, not markup
 written to satisfy the parser — a regex that only works against something
 we invented would prove nothing about the sites we actually scrape.
 """
+import csv
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -291,6 +292,26 @@ def test_invalid_utf8_positions_file_is_reported_without_any_request(
 ):
     positions = tmp_path / "positions.csv"
     positions.write_bytes(b"isin_or_code,coupon_rate_pct,maturity\nUS260543BY86,\xff,2039\n")
+
+    got, exc = fetch_quotes(positions, TODAY)
+
+    assert got == {}
+    assert len(exc) == 1
+    assert exc[0].startswith("quotes: positions read error:")
+    assert requests_mock.request_history == []
+
+
+def test_malformed_positions_csv_is_reported_without_any_request(
+    tmp_path, requests_mock
+):
+    positions = tmp_path / "positions.csv"
+    positions.write_text(
+        "isin_or_code,coupon_rate_pct,maturity\n"
+        + "US260543BY86,"
+        + "9" * (csv.field_size_limit() + 1)
+        + ",2039-05-15\n",
+        encoding="utf-8",
+    )
 
     got, exc = fetch_quotes(positions, TODAY)
 
