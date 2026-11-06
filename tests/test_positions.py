@@ -170,6 +170,26 @@ def test_per_coupon_amount_uses_semiannual_field_when_two_dates():
     assert snap.next_coupon.amount == Decimal("11250.00")
 
 
+def test_known_semiannual_coupon_is_kept_when_annual_interest_is_blank(tmp_path):
+    path = tmp_path / "positions.csv"
+    path.write_text(
+        "instrument_type,issuer_or_name,buy_price,cost,annual_interest,"
+        "semiannual_interest,coupon_dates\n"
+        "bond,Semiannual Bond,100,10000,,250,5/1;11/1\n",
+        encoding="utf-8",
+    )
+
+    snap, exc = load_positions(path, today=TODAY)
+
+    assert exc == []
+    assert snap.next_coupon is not None
+    assert snap.next_coupon.issuer == "Semiannual Bond"
+    assert snap.next_coupon.date == date(2026, 5, 1)
+    assert snap.next_coupon.amount == Decimal("250")
+    assert snap.annual_coupon == {}  # Do not invent an unknown annual total.
+    assert snap.total_cost == {"USD": Decimal("10000")}
+
+
 def test_per_coupon_amount_divides_when_more_than_two_dates(tmp_path):
     # An instrument with 4 coupon dates (quarterly), no semiannual field
     csv_path = tmp_path / "quarterly.csv"

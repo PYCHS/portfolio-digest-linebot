@@ -58,10 +58,12 @@ def _next_occurrences(coupon_dates: str, today: Date) -> list[Date]:
 def _per_coupon_amount(
     annual: Decimal | None, semi: Decimal | None, n: int
 ) -> Decimal | None:
-    if annual is None or n == 0:
-        return None
+    # An explicit semiannual payment is usable on its own, just as it is in
+    # the cashflow projection; annual interest is only needed for division.
     if n == 2 and semi is not None:
         return semi
+    if annual is None or n == 0:
+        return None
     return (annual / Decimal(n)).quantize(TWO_DP)
 
 
