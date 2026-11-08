@@ -64,7 +64,7 @@ cp data/ledger.example.csv         private/ledger.csv
 |---|---|---|
 | `private/watchlist.yaml` | News-source watchlist | yes |
 | `private/positions.csv` | Holdings + coupon schedule (used by the Snapshot section) | yes |
-| `private/prices.csv` | Fallback/override quotes per ISIN (clean price per 100 face) for the 持倉行情 section; see `data/prices.example.csv` | **optional** — used only where the live fetch comes back empty |
+| `private/prices.csv` | Stored quotes per ISIN (clean price per 100 face) for the 持倉行情 section; see `data/prices.example.csv` | **optional** — used when live quotes are missing, older, or undated relative to a dated stored quote |
 | `private/ledger.csv` | **Actual** cash movements (deposits, coupons received, fees) | **optional** — missing file renders the Cashflow section as zeros |
 | `private/recurring.csv` | Scheduled cashflows the positions schema can't express: FCN monthly coupons, loan/repo interest, insurance payouts (see `data/recurring.example.csv`) | **optional** — projection then uses bond coupons only |
 | `private/llm_context.txt` | One-paragraph portfolio description injected into the LLM prompt | **optional** — a generic default is used |
@@ -73,7 +73,9 @@ cp data/ledger.example.csv         private/ledger.csv
 
 Quotes are fetched fresh each run (see `src/sources/quotes.py`): Public.com for US issues, whose URL is derivable from the ISIN, and E.SUN Bank's offshore-bond table for XS-prefixed eurobonds that US sources do not carry. Both are scraped HTML and will eventually break, so every quote is checked against the coupon and maturity recorded in `positions.csv` before it is trusted — a wrong-bond redirect or a redesigned page produces no quote instead of a plausible-looking wrong one.
 
-`prices.csv` is what catches that: anything the fetch misses keeps its stored value, and since every quote carries an `as_of` date the section header dates the numbers and, past four days — enough to absorb a long weekend on the bank table — says how long they have been sitting. Rows with a blank `price` are skipped, so the file can be seeded with every ISIN up front. Set `FETCH_QUOTES=0` to skip the network entirely and run purely off the file.
+`prices.csv` is what catches that: anything the fetch misses keeps its stored value. A dated stored quote also survives when the live quote is older or has no date; a same-day or newer live quote replaces it. The section header dates the numbers and, past four days — enough to absorb a long weekend on the bank table — says how long they have been sitting. Rows with a blank `price` are skipped, so the file can be seeded with every ISIN up front. Set `FETCH_QUOTES=0` to disable live bond-quote requests and use the file for holdings prices; news, FX, and optional LLM requests still run.
+
+For GitHub Actions, encode your own `private/prices.csv` using the base64 instructions below and store it in the optional `PRICES_CSV_B64` repository secret. Refresh that secret when you update stored prices or their `as_of` dates. If it is unset, the workflow does not create a prices file or substitute sample prices; holdings without live quotes remain explicitly unquoted.
 
 ## Environment variables
 
@@ -148,6 +150,7 @@ Configure repo secrets under *Settings → Secrets and variables → Actions*:
 | `LLM_CONTEXT_TXT_B64` | (optional) base64 of `private/llm_context.txt` |
 | `WATCHLIST_YAML_B64` | base64 of `private/watchlist.yaml` |
 | `POSITIONS_CSV_B64` | base64 of `private/positions.csv` |
+| `PRICES_CSV_B64` | base64 of `private/prices.csv` — **optional**; stored fallback quotes, with no sample-file substitution |
 | `LEDGER_CSV_B64` | base64 of `private/ledger.csv` — **optional**; omit to render Cashflow as zeros |
 
 Encode each file once and paste the result as a secret:
