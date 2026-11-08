@@ -172,3 +172,34 @@ def test_undated_live_quote_does_not_replace_dated_stored_fallback():
         "quotes XS0000000001: live quote has no date; keeping dated fallback "
         "2026-04-24"
     ]
+
+
+def test_mixed_live_quotes_merge_independently_without_mutating_inputs():
+    stored = {
+        "STALE": PricePoint(Decimal("99.50"), date(2026, 4, 24)),
+        "FRESH": PricePoint(Decimal("100.00"), date(2026, 4, 24)),
+        "MISSING": PricePoint(Decimal("101.00"), date(2026, 4, 24)),
+    }
+    live = {
+        # Rejecting this first entry must not abort the rest of the batch.
+        "STALE": PricePoint(Decimal("98.00"), date(2026, 4, 20)),
+        "FRESH": PricePoint(Decimal("102.00"), date(2026, 4, 25)),
+        "NEW": PricePoint(Decimal("103.00"), date(2026, 4, 25)),
+    }
+    stored_before = dict(stored)
+    live_before = dict(live)
+
+    merged, exc = merge_live_prices(stored, live)
+
+    assert merged == {
+        "STALE": stored_before["STALE"],
+        "FRESH": live_before["FRESH"],
+        "MISSING": stored_before["MISSING"],
+        "NEW": live_before["NEW"],
+    }
+    assert exc == [
+        "quotes STALE: live quote dated 2026-04-20 is older than "
+        "fallback 2026-04-24; keeping fallback"
+    ]
+    assert stored == stored_before
+    assert live == live_before
