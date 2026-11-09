@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import src.main as main_module
+from src.dedup import load_seen, normalize
 from src.main import main
 from src.models import PricePoint
 
@@ -265,6 +266,40 @@ def test_push_failure_returns_rc3(
     assert "LINE push failed" in err
     assert "401" in err
     assert paths["seen"].read_text(encoding="utf-8") == original_seen
+
+
+def test_first_push_failure_keeps_news_available_for_retry(
+    tmp_path, monkeypatch, requests_mock, capsys
+):
+    paths = _write_files(tmp_path)
+    _setup_env(monkeypatch, paths)
+    _setup_http(requests_mock)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "test-token")
+    monkeypatch.setenv("LINE_GROUP_ID", "C-test-group")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    push_url = "https://api.line.me/v2/bot/message/push"
+    requests_mock.post(
+        push_url,
+        [
+            {"status_code": 401, "json": {"message": "Authentication failed"}},
+            {"status_code": 200, "json": {}},
+        ],
+    )
+    assert not paths["seen"].exists()
+
+    assert main(["--push"]) == 3
+    assert "LINE push failed" in capsys.readouterr().err
+    assert not paths["seen"].exists()
+
+    assert main(["--push"]) == 0
+    headline = "ACME Q1 results in line with guidance"
+    pushes = [r for r in requests_mock.request_history if r.url == push_url]
+    assert len(pushes) == 2
+    for request in pushes:
+        assert headline in "".join(m["text"] for m in request.json()["messages"])
+    assert [entry.title_norm for entry in load_seen(paths["seen"])] == [
+        normalize(headline)
+    ]
 
 
 def test_restore_does_not_reuse_another_runs_temp_file(tmp_path):
