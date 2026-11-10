@@ -138,7 +138,12 @@ def _entry_source(entry: dict[str, Any], fallback_url: str) -> str:
         if isinstance(title, str) and title.strip():
             return title.strip()
     link = _entry_text(entry, "link") or fallback_url
-    netloc = urlparse(link).netloc
+    try:
+        netloc = urlparse(link).netloc
+    except ValueError:
+        # A malformed feed link (for example, an unmatched IPv6 bracket)
+        # must not discard this headline or the rest of the collected news.
+        return fallback_url
     return netloc or fallback_url
 
 

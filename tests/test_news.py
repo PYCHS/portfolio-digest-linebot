@@ -799,6 +799,38 @@ def test_malformed_entry_text_does_not_discard_valid_news(monkeypatch, tmp_path)
     assert items[0].link is None
 
 
+def test_malformed_link_does_not_abort_news_collection(requests_mock, tmp_path):
+    wl = tmp_path / "wl.yaml"
+    wl.write_text(
+        "issuers:\n  - id: ACME\n"
+        f"    rss: [{ACME_RSS_URL}]\n"
+        "settings:\n  max_items_per_issuer: 2\n",
+        encoding="utf-8",
+    )
+    requests_mock.get(
+        ACME_RSS_URL,
+        text=(
+            '<rss version="2.0"><channel>'
+            '<item><title>ACME posts quarterly results</title>'
+            '<link>https://[broken.example/news</link>'
+            '<pubDate>Sat, 25 Apr 2026 10:00:00 +0000</pubDate></item>'
+            '<item><title>Factory wins safety award</title>'
+            '<link>https://valid.example/award</link>'
+            '<pubDate>Sat, 25 Apr 2026 09:00:00 +0000</pubDate></item>'
+            '</channel></rss>'
+        ),
+    )
+
+    items, exc = fetch_news(wl, tmp_path / "seen.json", now=NOW)
+
+    assert exc == []
+    assert [item.summary for item in items] == [
+        "ACME posts quarterly results", "Factory wins safety award"
+    ]
+    assert [item.source for item in items] == [ACME_RSS_URL, "valid.example"]
+    assert requests_mock.call_count == 1
+
+
 def test_persist_seen_false_does_not_write_seen_file_and_yields_repeatable_items(
     requests_mock, tmp_path
 ):
