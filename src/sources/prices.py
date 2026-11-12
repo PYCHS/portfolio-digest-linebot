@@ -56,7 +56,7 @@ def load_prices(
             if missing:
                 return None, [f"prices: missing columns {sorted(missing)}"]
             rows = list(reader)
-    except (OSError, UnicodeError) as e:
+    except (OSError, UnicodeError, csv.Error) as e:
         return None, [f"prices: read error: {e}"]
 
     has_as_of = "as_of" in fieldnames

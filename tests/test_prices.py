@@ -1,3 +1,4 @@
+import csv
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -36,6 +37,22 @@ def test_invalid_utf8_returns_a_read_error(tmp_path):
     assert prices is None
     assert len(exc) == 1
     assert exc[0].startswith("prices: read error:")
+
+
+def test_oversized_csv_field_returns_a_read_error(tmp_path):
+    path = tmp_path / "prices.csv"
+    path.write_text(
+        "isin_or_code,price,notes\n"
+        "XS0000000001,99.25,valid row\n"
+        "XS0000000002,100.00," + "x" * (csv.field_size_limit() + 1) + "\n",
+        encoding="utf-8",
+    )
+
+    prices, exc = load_prices(path)
+
+    assert prices is None
+    assert len(exc) == 1
+    assert exc[0].startswith("prices: read error: field larger than field limit")
 
 
 def test_missing_required_columns_is_reported():
