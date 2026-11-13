@@ -129,6 +129,21 @@ def test_blank_currency_reports_row_and_keeps_valid_transactions(tmp_path):
     assert exc == ["ledger row 2: missing currency"]
 
 
+def test_ledger_error_points_to_file_line_after_multiline_description(tmp_path):
+    path = tmp_path / "ledger.csv"
+    path.write_text(
+        'date,amount,currency,category,description\n'
+        '2026-04-25,20.00,USD,coupon,"first line\nsecond line"\n'
+        '2026-04-25,55.00,,coupon,missing currency\n',
+        encoding="utf-8",
+    )
+
+    cashflow, exc = load_ledger(path, today=TODAY)
+
+    assert cashflow.today["USD"] == Decimal("20.00")
+    assert exc == ["ledger row 4: missing currency"]
+
+
 def test_non_finite_amount_rejected_with_exception(tmp_path):
     # Decimal accepts "Infinity" and "NaN" — these must not flow into sums.
     p = tmp_path / "nonfinite.csv"

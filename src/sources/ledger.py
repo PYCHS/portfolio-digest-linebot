@@ -41,14 +41,19 @@ def load_ledger(
                 return None, ["ledger: empty file"]
             if [h.strip() for h in header] != EXPECTED_HEADER:
                 return None, [f"ledger: unexpected header {header!r}"]
-            rows = list(reader)
+            rows = []
+            line = reader.line_num + 1
+            for row in reader:
+                # A quoted description can span multiple physical lines.
+                rows.append((line, row))
+                line = reader.line_num + 1
     except (OSError, UnicodeError) as e:
         return None, [f"ledger: read error: {e}"]
 
     exceptions: list[str] = []
     unsupported: list[str] = []
 
-    for n, raw in enumerate(rows, start=2):
+    for n, raw in rows:
         if not raw or all(c.strip() == "" for c in raw):
             continue
         if len(raw) < 3:
