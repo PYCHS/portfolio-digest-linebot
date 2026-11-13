@@ -5,7 +5,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -257,6 +257,13 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(
             f"error: invalid PROJECTION_DAYS: {projection_days_raw!r} "
             "(must be a positive integer)\n"
+        )
+        return 2
+    max_projection_days = (date.max - now.date()).days
+    if projection_days > max_projection_days:
+        sys.stderr.write(
+            f"error: invalid PROJECTION_DAYS: {projection_days_raw!r} "
+            f"(must not exceed {max_projection_days} days from the digest date)\n"
         )
         return 2
 

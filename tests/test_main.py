@@ -413,6 +413,19 @@ def test_non_positive_projection_days_returns_rc2(monkeypatch, capsys, value):
     assert "positive integer" in err
 
 
+def test_projection_days_beyond_calendar_range_fails_before_collecting(
+    monkeypatch, capsys
+):
+    monkeypatch.setattr(main_module, "_now_in_tz", lambda _tz: NOW)
+    monkeypatch.setenv("PROJECTION_DAYS", str((date.max - NOW.date()).days + 1))
+    monkeypatch.setattr(
+        main_module, "build_digest", lambda **kwargs: pytest.fail("started collectors")
+    )
+
+    assert main(["--dry-run"]) == 2
+    assert "PROJECTION_DAYS" in capsys.readouterr().err
+
+
 def test_dry_run_does_not_write_news_seen_file(
     tmp_path, monkeypatch, requests_mock, capsys
 ):
