@@ -215,7 +215,11 @@ def main(argv: list[str] | None = None) -> int:
     # Match the documented local workflow (`cp .env.example .env` followed by
     # `python -m src.main`). Existing process variables keep priority, so CI,
     # cron, and explicit shell configuration are never overwritten.
-    load_dotenv(Path.cwd() / ".env", override=False)
+    try:
+        load_dotenv(Path.cwd() / ".env", override=False)
+    except (OSError, UnicodeError) as exc:
+        sys.stderr.write(f"error: cannot read .env ({type(exc).__name__})\n")
+        return 2
 
     parser = argparse.ArgumentParser(prog="portfolio-digest")
     mode = parser.add_mutually_exclusive_group()

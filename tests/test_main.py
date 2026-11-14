@@ -158,6 +158,18 @@ def test_direct_cli_loads_dotenv_from_working_directory(
     assert "invalid LOG_LEVEL" in capsys.readouterr().err
 
 
+def test_invalid_dotenv_encoding_stops_before_collecting(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PYTHON_DOTENV_DISABLED", raising=False)
+    (tmp_path / ".env").write_bytes(b"LOG_LEVEL=\xff\n")
+    monkeypatch.setattr(
+        main_module, "build_digest", lambda **kwargs: pytest.fail("started collectors")
+    )
+
+    assert main(["--dry-run"]) == 2
+    assert capsys.readouterr().err == "error: cannot read .env (UnicodeDecodeError)\n"
+
+
 def test_push_flag_sends_rendered_message_to_line_group(
     tmp_path, monkeypatch, requests_mock, capsys
 ):
