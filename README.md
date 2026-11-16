@@ -115,6 +115,8 @@ python -m src.main --dry-run    # explicit alias for the default
 python -m src.main --push
 ```
 
+The default and `--dry-run` modes do not send to LINE, require LINE credentials, or write the news deduplication file (`private/.news_seen.json` by default, configurable via `NEWS_SEEN_PATH`). They still read existing deduplication state and can make outbound requests for news, FX, live quotes, and optional LLM features. Use the mocked test suite below if you need an offline check.
+
 `--push` requires `LINE_CHANNEL_ACCESS_TOKEN` and `LINE_GROUP_ID` in the environment. If either is missing the CLI exits with rc=2 before any network call. A failed push (e.g. 401, 5xx) exits with rc=3 and the LINE error message is printed to stderr.
 
 `--push` and `--dry-run` are mutually exclusive — argparse enforces it.
