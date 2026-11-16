@@ -105,6 +105,22 @@ def test_prior_day_network_error_preserves_today_rate(monkeypatch, requests_mock
     assert fx.usd_chf_dod_pct is None
 
 
+def test_prior_day_rate_overflow_preserves_current_rates(requests_mock):
+    requests_mock.get(LATEST, json={"date": "2026-04-25", "rates": {"CHF": 0.9123}})
+    requests_mock.get(
+        PRIOR, json={"date": "2026-04-24", "rates": {"CHF": "1E-999999"}}
+    )
+
+    fx, exc = fetch_fx(today=date(2026, 4, 25))
+
+    assert exc == []
+    assert fx is not None
+    assert fx.usd_chf == Decimal("0.9123")
+    assert fx.chf_usd == Decimal("1.0961")
+    assert fx.usd_chf_dod_pct is None
+    assert fx.usd_twd == Decimal("31.8477")
+
+
 def test_today_500_returns_full_gap(monkeypatch, requests_mock):
     monkeypatch.setattr(fx_mod.time, "sleep", lambda _s: None)
     requests_mock.get(LATEST, status_code=500)

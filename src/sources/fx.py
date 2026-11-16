@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from datetime import date as Date, timedelta
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, Overflow, ROUND_HALF_UP
 
 import requests
 
@@ -135,7 +135,8 @@ def fetch_fx(
             dod_pct = (
                 (usd_chf - prior_rate) / prior_rate * Decimal(100)
             ).quantize(PCT_QUANTUM, rounding=ROUND_HALF_UP)
-    except _FETCH_ERRORS:
+    except (*_FETCH_ERRORS, Overflow):
+        # An extreme prior rate can overflow the percentage calculation.
         pass
 
     exceptions: list[str] = []
