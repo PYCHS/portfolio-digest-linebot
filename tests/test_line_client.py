@@ -1,5 +1,6 @@
 from uuid import UUID
 
+import pytest
 import requests
 
 from src.line_client import LINE_MESSAGE_LIMIT, LINE_TEXT_LIMIT, push_message
@@ -147,6 +148,30 @@ def test_message_over_limit_is_split_in_one_push(requests_mock):
     assert len(chunks) == 2
     assert all(len(chunk) <= LINE_TEXT_LIMIT for chunk in chunks)
     assert "".join(chunks) == long_text
+    assert requests_mock.call_count == 1
+
+
+@pytest.mark.parametrize("parts", [1, LINE_MESSAGE_LIMIT])
+@pytest.mark.parametrize("early_newline", [False, True])
+def test_exact_message_capacity_is_sent_without_losing_text(
+    requests_mock, parts, early_newline
+):
+    requests_mock.post(PUSH_URL, status_code=200, json={})
+    text = "摘" * (LINE_TEXT_LIMIT * parts)
+    if early_newline:
+        # At full capacity, cutting early at this newline would require an
+        # extra message. The splitter must use the available space instead.
+        text = text[:10] + "\n" + text[11:]
+
+    ok, err = push_message(text=text, group_id="C1", access_token="t")
+
+    assert ok is True
+    assert err is None
+    messages = requests_mock.last_request.json()["messages"]
+    assert len(messages) == parts
+    assert all(message["type"] == "text" for message in messages)
+    assert all(len(message["text"]) == LINE_TEXT_LIMIT for message in messages)
+    assert "".join(message["text"] for message in messages) == text
     assert requests_mock.call_count == 1
 
 
