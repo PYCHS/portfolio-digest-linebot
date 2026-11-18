@@ -105,6 +105,36 @@ def test_save_failure_preserves_existing_seen_file(tmp_path, monkeypatch):
     assert list(tmp_path.glob(".seen.json.*.tmp")) == []
 
 
+@pytest.mark.parametrize("existing_file", [False, True])
+def test_partial_write_failure_preserves_seen_state(
+    tmp_path, monkeypatch, existing_file
+):
+    p = tmp_path / "seen.json"
+    original = b'{"entries": []}\n'
+    if existing_file:
+        p.write_bytes(original)
+    attempted_paths = []
+
+    def fail_write(self: Path, _data: str, **_kwargs) -> int:
+        attempted_paths.append(self)
+        self.write_bytes(b'{"entries": [')
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+
+    with pytest.raises(OSError, match="simulated disk full"):
+        save_seen(p, [SeenEntry(title_norm="new", first_seen=NOW.isoformat())])
+
+    assert len(attempted_paths) == 1
+    assert attempted_paths[0] != p
+    assert attempted_paths[0].parent == tmp_path
+    assert not attempted_paths[0].exists()
+    if existing_file:
+        assert p.read_bytes() == original
+    else:
+        assert not p.exists()
+
+
 def test_save_does_not_reuse_another_writers_temp_file(tmp_path):
     p = tmp_path / "seen.json"
     other_writer_temp = tmp_path / ".seen.json.tmp"
