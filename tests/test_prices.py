@@ -75,6 +75,23 @@ def test_bad_rows_are_skipped_individually_and_reported():
     ]
 
 
+def test_error_line_accounts_for_multiline_notes_and_blank_lines(tmp_path):
+    path = tmp_path / "prices.csv"
+    path.write_text(
+        'isin_or_code,price,notes\n'
+        'XS0000000001,99.25,"first line\nsecond line"\n'
+        '\n'
+        'US0000000002,not-a-price,bad quote\n',
+        encoding="utf-8",
+    )
+
+    prices, exc = load_prices(path)
+
+    assert set(prices) == {"XS0000000001"}
+    assert prices["XS0000000001"].price == Decimal("99.25")
+    assert exc == ["prices row 5: bad price 'not-a-price'"]
+
+
 def test_unparseable_date_keeps_the_price_but_drops_the_date():
     """A quote with a mangled date is still a quote; losing the price over a
     typo in a column that only annotates it would be the worse trade."""

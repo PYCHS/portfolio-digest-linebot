@@ -55,7 +55,9 @@ def load_prices(
             missing = REQUIRED_COLUMNS - set(fieldnames)
             if missing:
                 return None, [f"prices: missing columns {sorted(missing)}"]
-            rows = list(reader)
+            # DictReader skips blank lines and can consume quoted multiline
+            # fields. Keep each record's ending file line for diagnostics.
+            rows = [(reader.line_num, row) for row in reader]
     except (OSError, UnicodeError, csv.Error) as e:
         return None, [f"prices: read error: {e}"]
 
@@ -63,7 +65,7 @@ def load_prices(
     out: dict[str, PricePoint] = {}
     exceptions: list[str] = []
 
-    for n, row in enumerate(rows, start=2):
+    for n, row in rows:
         isin = (row.get("isin_or_code") or "").strip().upper()
         if not isin:
             exceptions.append(f"prices row {n}: missing isin_or_code")
