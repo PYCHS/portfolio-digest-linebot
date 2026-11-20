@@ -1,6 +1,9 @@
+import csv
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+
+import pytest
 
 from src.sources.ledger import load_ledger
 
@@ -76,6 +79,27 @@ def test_invalid_utf8_returns_a_read_error(tmp_path):
     assert cf is None
     assert len(exc) == 1
     assert exc[0].startswith("ledger: read error:")
+
+
+@pytest.mark.parametrize("oversized_header", [False, True])
+def test_oversized_csv_field_returns_read_error(tmp_path, oversized_header):
+    path = tmp_path / "ledger.csv"
+    oversized = "x" * (csv.field_size_limit() + 1)
+    if oversized_header:
+        content = oversized + ",amount,currency,category,description\n"
+    else:
+        content = (
+            "date,amount,currency,category,description\n"
+            "2026-04-25,55.00,USD,coupon,valid row\n"
+            "2026-04-25,20.00,USD,coupon," + oversized + "\n"
+        )
+    path.write_text(content, encoding="utf-8")
+
+    cf, exc = load_ledger(path, today=TODAY)
+
+    assert cf is None
+    assert len(exc) == 1
+    assert exc[0].startswith("ledger: read error: field larger than field limit")
 
 
 def test_header_only_returns_zero_cashflow():

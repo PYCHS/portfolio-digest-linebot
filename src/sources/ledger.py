@@ -47,7 +47,7 @@ def load_ledger(
                 # A quoted description can span multiple physical lines.
                 rows.append((line, row))
                 line = reader.line_num + 1
-    except (OSError, UnicodeError) as e:
+    except (OSError, UnicodeError, csv.Error) as e:
         return None, [f"ledger: read error: {e}"]
 
     exceptions: list[str] = []
