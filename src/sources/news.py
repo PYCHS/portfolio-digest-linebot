@@ -259,8 +259,11 @@ def fetch_news(
         return None, ["news: watchlist malformed (settings out of range)"]
     global_alert_keywords = _normalize_keywords(settings.get("alert_keywords"))
 
-    seen = prune_old(load_seen(seen_path), now=now, days=dedup_days)
-    cutoff = now - timedelta(hours=lookback_hours)
+    try:
+        seen = prune_old(load_seen(seen_path), now=now, days=dedup_days)
+        cutoff = now - timedelta(hours=lookback_hours)
+    except OverflowError:
+        return None, ["news: watchlist malformed (settings out of range)"]
 
     items: list[NewsItem] = []
     exceptions: list[str] = []

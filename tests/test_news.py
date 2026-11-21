@@ -503,6 +503,28 @@ def test_watchlist_rejects_out_of_range_settings(tmp_path, setting):
     assert exc == ["news: watchlist malformed (settings out of range)"]
 
 
+@pytest.mark.parametrize("setting", ["lookback_hours", "dedup_lookback_days"])
+def test_watchlist_rejects_calendar_overflow_without_side_effects(
+    tmp_path, requests_mock, setting
+):
+    watchlist = tmp_path / "watchlist.yaml"
+    watchlist.write_text(
+        f"issuers:\n  - id: ACME\n    rss: {ACME_RSS_URL}\n"
+        f"settings:\n  {setting}: 1000000000\n",
+        encoding="utf-8",
+    )
+    seen_path = tmp_path / "seen.json"
+    save_seen(seen_path, [SeenEntry("existing story", NOW.isoformat())])
+    original = seen_path.read_bytes()
+
+    items, exc = fetch_news(watchlist, seen_path, now=NOW)
+
+    assert items is None
+    assert exc == ["news: watchlist malformed (settings out of range)"]
+    assert requests_mock.request_history == []
+    assert seen_path.read_bytes() == original
+
+
 def test_direct_feed_network_error_logged_and_run_does_not_crash(
     monkeypatch, requests_mock, tmp_path
 ):
