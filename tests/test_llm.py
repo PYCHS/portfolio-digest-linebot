@@ -1,6 +1,7 @@
 import json
 
 import pytest
+import requests
 
 from src.llm import API_URL, MAX_OVERALL_CHARS, analyze_news
 from src.models import NewsItem
@@ -147,6 +148,21 @@ def test_api_error_returns_originals_with_exception(requests_mock):
     assert out == ITEMS
     assert overall is None
     assert len(exc) == 1 and exc[0].startswith("llm:")
+
+
+@pytest.mark.parametrize("error_type", [requests.Timeout, requests.ConnectionError])
+def test_analysis_transport_failure_keeps_news_and_redacts_details(
+    requests_mock, caplog, error_type
+):
+    secret = "synthetic-api-key-do-not-log"
+    requests_mock.post(API_URL, exc=error_type(f"request failed with key {secret}"))
+
+    out, overall, exc = analyze_news(ITEMS, api_key=secret)
+
+    assert out is ITEMS
+    assert overall is None
+    assert exc == [f"llm: {error_type.__name__}"]
+    assert secret not in caplog.text
 
 
 def test_garbage_model_output_returns_originals(requests_mock):
@@ -318,6 +334,21 @@ def test_generate_greeting_api_error_falls_back(requests_mock):
     text, exc = generate_greeting(today, api_key="k")
     assert text == fallback_greeting(today)
     assert len(exc) == 1 and exc[0].startswith("llm greeting:")
+
+
+@pytest.mark.parametrize("error_type", [requests.Timeout, requests.ConnectionError])
+def test_greeting_transport_failure_uses_offline_text_and_redacts_details(
+    requests_mock, caplog, error_type
+):
+    secret = "synthetic-api-key-do-not-log"
+    requests_mock.post(API_URL, exc=error_type(f"request failed with key {secret}"))
+    today = date(2026, 8, 4)
+
+    text, exc = generate_greeting(today, api_key=secret)
+
+    assert text == fallback_greeting(today)
+    assert exc == [f"llm greeting: {error_type.__name__}"]
+    assert secret not in caplog.text
 
 
 @pytest.mark.parametrize("invalid_text", [None, 123, {"value": "早安"}])
