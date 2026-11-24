@@ -3,6 +3,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from src.sources.schedule import project_cashflows
 
 TODAY = date(2026, 8, 4)
@@ -245,6 +247,39 @@ def test_recurring_monthly_with_end_date(tmp_path):
         date(2026, 10, 8),
     ]
     assert proj.net == {"USD": Decimal("3050.01")}
+
+
+@pytest.mark.parametrize(
+    ("year", "day", "months"),
+    [
+        (2026, 31, [1, 3, 5]),
+        (2026, 29, [1, 3, 4, 5]),
+        (2028, 29, [1, 2, 3, 4, 5]),
+    ],
+)
+def test_monthly_recurring_skips_missing_days_without_shifting_payments(
+    tmp_path, year, day, months
+):
+    today = date(year, 1, 1)
+    end = date(year, 5, 31)
+    recurring = _write(
+        tmp_path,
+        "recurring.csv",
+        RECURRING_HEADER
+        + f"Monthly coupon,USD,100.00,monthly:{day},,{end},coupon,0\n",
+    )
+
+    proj, exc = project_cashflows(
+        tmp_path / "nope.csv", recurring, today,
+        horizon_days=(end - today).days,
+    )
+
+    expected_dates = [date(year, month, day) for month in months]
+    assert exc == []
+    assert [event.date for event in proj.events] == expected_dates
+    assert proj.net == {"USD": Decimal("100.00") * len(expected_dates)}
+    assert proj.next_inflow.date == expected_dates[0]
+    assert proj.next_inflow_days == (expected_dates[0] - today).days
 
 
 def test_recurring_estimate_flag_is_case_insensitive(tmp_path):
