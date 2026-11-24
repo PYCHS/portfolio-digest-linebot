@@ -1,6 +1,9 @@
+import csv
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+
+import pytest
 
 from src.models import PricePoint
 from src.sources.positions import load_positions
@@ -148,6 +151,21 @@ def test_invalid_utf8_returns_full_gap(tmp_path):
     assert snap is None
     assert len(exc) == 1
     assert exc[0].startswith("positions: read error:")
+
+
+@pytest.mark.parametrize("oversized_header", [False, True])
+def test_oversized_csv_field_returns_full_gap(tmp_path, oversized_header):
+    path = tmp_path / "positions.csv"
+    content = (FIXTURES / "positions_basic.csv").read_text(encoding="utf-8")
+    field = "instrument_type" if oversized_header else "Issuer Beta"
+    content = content.replace(field, "x" * (csv.field_size_limit() + 1), 1)
+    path.write_text(content, encoding="utf-8")
+
+    snap, exc = load_positions(path, today=TODAY)
+
+    assert snap is None
+    assert len(exc) == 1
+    assert exc[0].startswith("positions: read error: field larger than field limit")
 
 
 def test_bad_rows_logged_and_buy_price_failure_treats_row_as_uncosted():

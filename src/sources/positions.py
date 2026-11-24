@@ -134,7 +134,7 @@ def load_positions(
             if missing:
                 return None, [f"positions: missing columns {sorted(missing)}"]
             rows = list(reader)
-    except (OSError, UnicodeError) as e:
+    except (OSError, UnicodeError, csv.Error) as e:
         return None, [f"positions: read error: {e}"]
 
     has_currency_col = "currency" in fieldnames
