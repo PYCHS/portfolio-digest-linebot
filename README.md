@@ -49,7 +49,7 @@ template.txt               # message template (single source of truth)
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e .[dev]
+pip install -e '.[dev]'
 cp .env.example .env               # then fill in values
 mkdir -p private
 cp config/watchlist.example.yaml   private/watchlist.yaml
