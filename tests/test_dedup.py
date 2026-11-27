@@ -48,6 +48,32 @@ def test_prune_old_drops_entries_beyond_window():
     assert [e.title_norm for e in out] == ["fresh"]
 
 
+@pytest.mark.parametrize(
+    ("days_ago", "microseconds", "retained"),
+    [
+        (3, -1, False),
+        (3, 0, True),
+        (3, 1, True),
+        (0, -1, True),
+        (0, 0, True),
+        (0, 1, False),
+    ],
+)
+def test_prune_old_window_boundaries_compare_instants_across_timezones(
+    days_ago, microseconds, retained
+):
+    timestamp = NOW - timedelta(days=days_ago) + timedelta(microseconds=microseconds)
+    candidate = SeenEntry(
+        title_norm="boundary",
+        first_seen=timestamp.astimezone(timezone(timedelta(hours=8))).isoformat(),
+    )
+    fresh = SeenEntry(title_norm="fresh", first_seen=NOW.isoformat())
+
+    out = prune_old([candidate, fresh], now=NOW, days=3)
+
+    assert out == ([candidate, fresh] if retained else [fresh])
+
+
 def test_prune_old_skips_corrupt_timestamps():
     good = SeenEntry(title_norm="good", first_seen=NOW.isoformat())
     bad = SeenEntry(title_norm="bad", first_seen="not-a-date")
